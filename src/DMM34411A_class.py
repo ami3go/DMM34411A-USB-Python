@@ -1,6 +1,4 @@
-import sys
 import pyvisa # PyVisa info @ http://PyVisa.readthedocs.io/en/stable/
-import time
 
 # https://www.keysight.com/upload/cmc_upload/All/34410A_Quick_Reference.pdf
 
@@ -12,7 +10,7 @@ USER_REQUESTED_POINTS = 1000
     ## Asking for zero (0) points, a negative number of points, fewer than 100 points, or a non-integer number of points (100.1 -> error, but 100. or 100.0 is ok) will result in an error, specifically -222,"Data out of range"
 
 ## Initialization constants
-SCOPE_VISA_ADDRESS = 'USB0::0x0957::0x0A07::MY48001027::0::INSTR' # Get this from Keysight IO Libraries Connection Expert
+INSTRUMENT_VISA_ADDRESS = 'USB0::0x0957::0x0A07::MY48001027::0::INSTR' # Get this from Keysight IO Libraries Connection Expert
     ## Note: sockets are not supported in this revision of the script (though it is possible), and PyVisa 1.8 does not support HiSlip, nor do these scopes.
     ## Note: USB transfers are generally fastest.
     ## Video: Connecting to Instruments Over LAN, USB, and GPIB in Keysight Connection Expert: https://youtu.be/sZz8bNHX5u4
@@ -22,7 +20,7 @@ GLOBAL_TOUT =  10 # IO time out in milliseconds
 class DMM_34411A:
     def __init__(self):
         self.rm = pyvisa.ResourceManager()
-        self.app = self.rm.open_resource(SCOPE_VISA_ADDRESS)
+        self.app = self.rm.open_resource(INSTRUMENT_VISA_ADDRESS)
         IDN = str(self.app.query("*IDN?"))
         print(f': Connected to: {IDN}')
         ## Set Global Timeout
