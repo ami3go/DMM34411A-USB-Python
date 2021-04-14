@@ -62,6 +62,11 @@ class DMM_34411A:
     def measure_resistnce_2wire(self):
         return self.app.query("MEASure:RESistance? AUTO")
 
+    def measure_current_dc(self):
+        return self.app.query("MEASure:CURRent? AUTO ,MAX")
+
+
+
     def close(self):
         self.app.clear()
         self.app.close()
