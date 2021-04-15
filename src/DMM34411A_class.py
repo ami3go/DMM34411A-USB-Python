@@ -29,6 +29,7 @@ class DMM_34411A:
 
         ## Clear the instrument bus
         self.app.clear()
+
     def conf_voltage_dc(self):
         self.app.write(":CONFigure:VOLTage:DC: AUTO")
 
@@ -51,6 +52,7 @@ class DMM_34411A:
         txt_cmd = "READ?"
         tmp = self.cmd_query(txt_cmd)
         return tmp
+
     def measure_voltage(self):
         return self.app.query("MEASure:VOLTage:DC? AUTO")
 
