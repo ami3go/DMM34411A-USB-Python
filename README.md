@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.1.0** (the original 2021 code had no package version). The core
+**Version: 0.1.1** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -89,3 +89,10 @@ qualification gate; see [the HIL checklist](docs/HIL.md).
 
 The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
 reference; it is not a substitute for 34411A HIL verification.
+
+## Planned measurement capture and NVM workflow
+
+The [buffered capture/NVM implementation task](task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md)
+tracks the future v0.2.0 feature. It is **not implemented** in v0.1.1. The
+instrument supports a 1,000,000-reading volatile buffer and separate 50,000-
+reading nonvolatile storage; existing data must not be erased automatically.
