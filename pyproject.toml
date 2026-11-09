@@ -24,6 +24,9 @@ test = [
   "build>=1.2",
 ]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["dmm34411a"]
 
