@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-11-09 (planning-only)
+
+- Add documented implementation task DMM34411A-NVM-BUFFER-001 for buffered
+  measurement acquisition and guarded nonvolatile-memory storage and retrieval.
+- No new capture/memory public API has been implemented in this release.
+
+
 ## 0.1.0 — 2026-11-09
 
 Initial versioned package; migration of the original unversioned 2021
