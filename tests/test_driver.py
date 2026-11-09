@@ -30,7 +30,9 @@ def test_legacy_configuration_commands(method: str, command: str) -> None:
     with DMM_34411A(transport=transport) as meter:
         getattr(meter, method)()
         assert meter.idn == IDN
-    assert transport.history == ["*IDN?", command]
+    # The core scripted simulator canonicalizes a leading root colon in history.
+    # Production methods still send the exact original SCPI command literals.
+    assert transport.history == ["*IDN?", command.lstrip(":")]
     assert transport.state is TransportState.CLOSED
 
 
