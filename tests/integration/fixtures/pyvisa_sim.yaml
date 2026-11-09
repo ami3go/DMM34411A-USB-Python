@@ -1,0 +1,29 @@
+spec: "1.0"
+
+devices:
+  dmm34411a:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "Agilent Technologies,34411A,SIM0001,1.0"
+      - q: ":CONFigure:VOLTage:DC: AUTO"
+      - q: ":CONFigure:FRESistance AUTO, MIN"
+      - q: ":CONFigure:RESistance AUTO, MIN"
+      - q: ":CONFigure:CURRent:DC: AUTO"
+      - q: "READ?"
+        r: "1.234500E+00"
+      - q: "MEASure:VOLTage:DC? AUTO"
+        r: "1.234500E+00"
+      - q: "MEASure:FRESistance? AUTO"
+        r: "123.000"
+      - q: "MEASure:RESistance? AUTO"
+        r: "123.000"
+      - q: "MEASure:CURRent:DC? AUTO ,MAX"
+        r: "0.100000"
+
+resources:
+  USB0::0x0957::0x0A07::MY48001027::0::INSTR:
+    device: dmm34411a

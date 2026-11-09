@@ -1,0 +1,91 @@
+# Keysight / Agilent 34411A USB Python Driver
+
+A synchronous Python driver for the 34411A digital multimeter, migrated from
+direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
+
+**Version: 0.1.0** (the original 2021 code had no package version). The core
+dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## Installation
+
+Requires Python 3.10+ and a working VISA backend capable of reaching the DMM
+(e.g. Keysight IO Libraries or NI-VISA on Windows, or a supported USBTMC backend
+on Linux). A simulator is sufficient for the default test suite.
+
+```bash
+python -m pip install -e .
+python -m pip install -e ".[test]"     # optional offline test suite
+```
+
+The runtime dependency is installed from the pinned GitHub commit of
+`ami3go/scpi-driver-core`; Git and network access are required for initial
+installation. The driver does not vendor, fork, or duplicate core transport logic.
+
+## Use
+
+```python
+from dmm34411a import DMM_34411A
+
+address = "USB0::0x0957::0x0A07::YOUR_SERIAL::0::INSTR"
+with DMM_34411A(resource_name=address, timeout_s=10.0) as dmm:
+    print(dmm.idn)
+    dmm.conf_voltage_dc()
+    print(dmm.cmd_read())        # string as in original driver
+    print(dmm.measure_voltage())
+    reading = dmm.client.query_float("READ?")  # optional typed core API
+```
+
+For scripted simulation, pass `transport=ScriptedScpiTransport(...)`. Pass
+`auto_open=False` to defer opening. The default address constant from the old
+code is still available but contains the serial number of a particular device:
+**always select the real bench address**.
+
+The old source-checkout import
+`from src.DMM34411A_class import DMM_34411A` continues to work when running
+from the repository root. Installed clients should import `dmm34411a`.
+
+## Preserved legacy methods
+
+| Config / control | Read / measurement |
+| --- | --- |
+| `conf_voltage_dc()` | `cmd_read()` |
+| `conf_resistane_4wire()` | `measure_voltage()` |
+| `conf_resistane_2wire()` | `measure_resistnce_4wire()` |
+| `conf_current_dc()` | `measure_resistnce_2wire()` |
+| `cmd_write(text)` | `measure_current_dc()`, `cmd_query(text)` |
+
+Historical misspellings are retained intentionally. All existing measurement
+methods still return **strings**, not floats. Existing command spelling and
+arguments were preserved exactly; actual instrument syntax must be checked
+with HIL before claiming hardware coverage.
+
+## Operational changes
+
+- `VisaTransport` owns the PyVISA resource; `ScpiClient` handles SCPI framing
+  and operations; `ScpiSession` owns lifecycle and connection health.
+- Timeouts use **seconds**: `timeout_s=5.0` by default instead of the old
+  hardcoded 10 ms. `GLOBAL_TOUT=10` remains importable only for compatibility.
+- Opening still probes `*IDN?`, but no longer prints to stdout.
+- Opening and closing **do not issue VISA device clear**. Use
+  `dmm.device_clear()` explicitly, only when it is safe to abort acquisitions.
+- The raw PyVISA `app` and `rm` objects are not part of the migrated interface.
+  Advanced calls should use `dmm.client`, `dmm.session`, or `dmm.transport`.
+- The shared transport faults on communication timeouts to prevent stale
+  responses being used as subsequent readings; do not blindly retry
+  `READ?` or `MEASure?` because they can trigger a measurement.
+
+## Validation
+
+```bash
+python -m pip install -e ".[test]"
+pytest -m "not hardware"
+python -m build
+```
+
+Automated tests cover legacy commands, return types, connection lifecycle,
+framing, fault handling, and the real core-to-PyVISA-to-PyVISA-sim path.
+All are hardware-free. The real USB/VISA instrument remains a separate
+qualification gate; see [the HIL checklist](docs/HIL.md).
+
+The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
+reference; it is not a substitute for 34411A HIL verification.
