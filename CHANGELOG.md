@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 — 2026-11-10 (planning-only)
+
+- Add `task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md` with a detailed
+  P0/P1/P2 execution plan for all remaining common 34411A measurement modes,
+  metrology controls, triggers, binary/streamed acquisition, math and status.
+- Link the master task from README and flag the v0.1.2 feature matrix as
+  historical after the v0.2.0 memory-logging merge.
+- **No new instrument commands or measurement functions** in this increment.
+
+
 ## 0.2.0 — 2026-11-10 (memory logging software-only)
 
 - Port buffered measurement acquisition and NVM logging from historical
