@@ -172,11 +172,12 @@ def test_copy_timeout_is_not_retried_and_invalidates_transport():
 
 
 def test_malformed_count_and_large_nondestructive_fetch_refused():
-    transport, state = meter_simulator(volatile=MAX_BIG := 100_000)
+    max_big = 100_000
+    transport, state = meter_simulator(volatile=max_big)
     with DMM_34411A(transport=transport) as dmm:
         with pytest.raises(ValueError):
             dmm.read_volatile_readings()
-        assert dmm.volatile_point_count() == MAX_BIG
+        assert dmm.volatile_point_count() == max_big
     state["volatile"] = 0
 
 
