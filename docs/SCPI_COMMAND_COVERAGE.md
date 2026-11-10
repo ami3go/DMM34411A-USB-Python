@@ -1,6 +1,6 @@
-# Keysight/Agilent 34411A — SCPI measurement command coverage (v0.3.0)
+# Keysight/Agilent 34411A — SCPI measurement and metrology command coverage (v0.3.2)
 
-**Baseline:** v0.3.0 implementation increment of DMM34411A-FULL-API-001.
+**Baseline:** v0.3.2; measurement implementation v0.3.0, metrology v0.3.1 + v0.3.2 safety hardening.
 **Qualification:** Command strings verified against official Keysight 34410A/11A
 Quick Reference, not yet verified on a connected physical 34411A.
 **Legacy coverage:** Existing v0.2.0 acquisition/NVM functions remain in place.
@@ -61,3 +61,20 @@ Reference; numeric manual range and aperture/NPLC controls belong to P1-03.
 select the active function. The command family is documented, while the
 actual connected firmware's behavior, limits, rounding and long-term
 metrology performance are not hardware-verified. Do not assert HIL passed.
+
+## v0.3.2 P1-03 metrology corrections
+
+| Capability | SCPI set command | SCPI query | Python method | Qualification |
+| --- | --- | --- | --- | --- |
+| Frequency input voltage range | `SENSe:FREQuency:VOLTage:RANGe <V>` | `SENSe:FREQuency:VOLTage:RANGe?` | `metrology.set_range/get_range(F.FREQUENCY)` | Offline tested; HIL NOT RUN |
+| Period input voltage range | `SENSe:PERiod:VOLTage:RANGe <V>` | `SENSe:PERiod:VOLTage:RANGe?` | `metrology.set_range/get_range(F.PERIOD)` | Offline tested; HIL NOT RUN |
+| Frequency/period ACV filter | `SENSe:VOLTage:AC:BANDwidth 3/20/200` | `SENSe:VOLTage:AC:BANDwidth?` | `metrology.set_ac_bandwidth/get_ac_bandwidth` | Offline tested; HIL NOT RUN |
+| NPLC mode selection | `SENSe:<DC/ohms/temp>:NPLC x`, `...:APERture:ENABled OFF` | `...:NPLC?`, `...:APERture:ENABled?` | `metrology.set_nplc()` | Offline tested; verify actual mode HIL |
+| Aperture mode selection | `SENSe:<DC/ohms/temp>:APERture x`, `...:APERture:ENABled ON` | `...:APERture?`, `...:APERture:ENABled?` | `metrology.set_aperture()` | Offline tested; verify actual mode HIL |
+| 4-wire resistance enable suffix | `SENSe:FRESistance:APERture:ENABle ON/OFF` | `SENSe:FRESistance:APERture:ENABle?` | Same NPLC/aperture setters | Offline tested; verify firmware spelling HIL |
+| Temperature autozero | `SENSe:TEMPerature:ZERO:AUTO ON/OFF/ONCE` | `SENSe:TEMPerature:ZERO:AUTO?` | `metrology.set_autozero/get_autozero` | Only after configured 2-wire RTD/thermistor; 4-wire blocked |
+| Pre-reading settings | SENSe queries + `READ?` | Metrology + reading | `metrology.read_with_settings()` | Software-sequenced, not atomic |
+
+**Limits:** these command spellings are documented for the 34410A/34411A
+family; real instrument acceptance, firmware behavior and settings/accuracy
+must still be checked in hardware. This table is a command mapping, not an HIL report.

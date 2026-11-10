@@ -183,3 +183,25 @@ firmware, calibration status, transport/backend, software/core versions.
 
 No actual hardware has been tested by this PR. Only Python offline CI is
 eligible for automated merging.
+
+## v0.3.2 P1-03 hardening HIL checks (NOT RUN)
+
+1. With an approved AC signal source, configure frequency and period
+   separately and set the 10 V input range. Read back
+   `SENSe:FREQuency:VOLTage:RANGe?`,
+   `SENSe:PERiod:VOLTage:RANGe?` and the related `:AUTO?` registers.
+   Confirm settings use V, not Hz/seconds, and do not change the
+   measurement function by themselves.
+2. Verify the frequency/period 3/20/200 Hz filter affects the shared
+   AC voltage input filter as documented, with correct readback.
+3. DC voltage, resistance 4-wire and RTD 2-wire: set a known NPLC and query
+   `:APERture:ENABled?` or FRES `:APERture:ENABle?` to confirm OFF;
+   then set aperture and verify it reports ON. Record measurement timing.
+4. With a safely wired 4-wire RTD, validate that autozero is always enabled
+   and that the driver refuses attempts to disable it. With authorized 2-wire
+   RTD/thermistor fixture, qualify ON/OFF/ONCE separately.
+5. Test `read_with_settings()`: capture actual pre-read SCPI settings,
+   reading value and host timestamp, and ensure one `READ?` only. Do not
+   claim device-atomic metadata or per-sample timestamps.
+6. Record SCPI error queue without implicit clearing, command transcripts,
+   serial, firmware, source accuracy and operator PASS/FAIL/NOT RUN.

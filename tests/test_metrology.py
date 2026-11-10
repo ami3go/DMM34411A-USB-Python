@@ -70,7 +70,7 @@ def test_invalid_range_rejected_without_hardware_write(function, value):
 
 
 @pytest.mark.parametrize(
-    "function", [F.FREQUENCY, F.PERIOD, F.CONTINUITY, F.DIODE, F.TEMPERATURE]
+    "function", [F.CONTINUITY, F.DIODE, F.TEMPERATURE]
 )
 def test_range_is_not_a_generic_command_for_any_function(function):
     tr = fake()
@@ -133,6 +133,7 @@ def test_34411a_fast_and_standard_nplc_choices(nplc):
         dmm.metrology.set_nplc(F.DC_VOLTAGE, nplc)
         assert dmm.metrology.get_nplc(F.DC_VOLTAGE) == pytest.approx(nplc)
     assert tr.history == ["*IDN?", f"SENSe:VOLTage:DC:NPLC {nplc:g}",
+                          "SENSe:VOLTage:DC:APERture:ENABled OFF",
                           "SENSe:VOLTage:DC:NPLC?"]
 
 
@@ -146,7 +147,9 @@ def test_34411a_only_fast_nplc_and_short_aperture_not_used_on_34410a():
         dmm.metrology.set_nplc(F.DC_VOLTAGE, 0.006)
         dmm.metrology.set_aperture(F.DC_VOLTAGE, 0.0001)
     assert tr.history == ["*IDN?", "SENSe:VOLTage:DC:NPLC 0.006",
-                          "SENSe:VOLTage:DC:APERture 0.0001"]
+                          "SENSe:VOLTage:DC:APERture:ENABled OFF",
+                          "SENSe:VOLTage:DC:APERture 0.0001",
+                          "SENSe:VOLTage:DC:APERture:ENABled ON"]
 
 
 @pytest.mark.parametrize("function,prefix", [
@@ -154,7 +157,7 @@ def test_34411a_only_fast_nplc_and_short_aperture_not_used_on_34410a():
     (F.RESISTANCE_2W, "SENSe:RESistance"),
     (F.RESISTANCE_4W, "SENSe:FRESistance"), (F.TEMPERATURE, "SENSe:TEMPerature")
 ])
-def test_aperture_nplc_settings_do_not_implicitly_toggle_each_other(function, prefix):
+def test_nplc_aperture_mode_selection_is_explicit(function, prefix):
     enable_token = "ENABle" if function is F.RESISTANCE_4W else "ENABled"
     tr = fake().on(prefix + ":APERture?", "0.001").on(
         f"{prefix}:APERture:{enable_token}?", "1"
@@ -169,8 +172,10 @@ def test_aperture_nplc_settings_do_not_implicitly_toggle_each_other(function, pr
     assert tr.history == [
         "*IDN?", prefix + ":APERture 0.001",
         f"{prefix}:APERture:{enable_token} ON",
+        f"{prefix}:APERture:{enable_token} ON",
         f"{prefix}:APERture:{enable_token}?",
-        prefix + ":APERture?", prefix + ":NPLC DEF", prefix + ":NPLC?",
+        prefix + ":APERture?", prefix + ":NPLC DEF",
+        f"{prefix}:APERture:{enable_token} OFF", prefix + ":NPLC?",
     ]
 
 
@@ -359,5 +364,110 @@ def test_metrology_does_not_change_active_measurement_or_nvm_state():
         assert dmm.nonvolatile_point_count() == 7
     assert tr.history == [
         "*IDN?", "CONFigure:VOLTage:DC", "SENSe:VOLTage:DC:NPLC 1",
+        "SENSe:VOLTage:DC:APERture:ENABled OFF",
         "SENSe:VOLTage:DC:IMPedance:AUTO OFF", "READ?", "DATA:POINts? NVMEM",
     ]
+
+
+
+@pytest.mark.parametrize(("function","path"), [
+    (F.FREQUENCY, "SENSe:FREQuency:VOLTage:RANGe"),
+    (F.PERIOD, "SENSe:PERiod:VOLTage:RANGe"),
+])
+def test_frequency_period_input_range_is_voltage_not_hz(function, path):
+    tr = fake().on(path + "?", "10").on(path + ":AUTO?", "1")
+    with DMM_34411A(transport=tr) as dmm:
+        dmm.metrology.set_range(function, 10)
+        dmm.metrology.set_range(function, "AUTO")
+        dmm.metrology.set_autorange(function, True)
+        assert dmm.metrology.get_range(function) == 10
+        assert dmm.metrology.get_autorange(function) is True
+    assert tr.history == [
+        "*IDN?", path + " 10", path + ":AUTO ON",
+        path + ":AUTO ON", path + "?", path + ":AUTO?"
+    ]
+
+
+@pytest.mark.parametrize("function", [F.FREQUENCY, F.PERIOD])
+def test_frequency_period_use_ac_voltage_filter(function):
+    tr = fake().on("SENSe:VOLTage:AC:BANDwidth?", "20")
+    with DMM_34411A(transport=tr) as dmm:
+        dmm.metrology.set_ac_bandwidth(function, 3)
+        assert dmm.metrology.get_ac_bandwidth(function) == 20
+    assert tr.history == [
+        "*IDN?", "SENSe:VOLTage:AC:BANDwidth 3",
+        "SENSe:VOLTage:AC:BANDwidth?"
+    ]
+
+
+def test_four_wire_temperature_autozero_can_never_be_disabled():
+    from dmm34411a import TemperatureProbe
+    tr = fake()
+    with DMM_34411A(transport=tr) as dmm:
+        with pytest.raises(UnsupportedOperationError):
+            dmm.metrology.set_autozero(F.TEMPERATURE, False)
+        dmm.configure_temperature(TemperatureProbe.RTD_4W)
+        with pytest.raises(UnsupportedOperationError):
+            dmm.metrology.set_autozero(F.TEMPERATURE, False)
+        with pytest.raises(UnsupportedOperationError):
+            dmm.metrology.get_autozero(F.TEMPERATURE)
+        snapshot = dmm.metrology.snapshot
+        # No implicit temperature autozero query on 4-wire sensor.
+        assert snapshot is not None
+    assert tr.history == ["*IDN?", "CONFigure:TEMPerature FRTD,DEF"]
+
+
+def test_two_wire_temperature_autozero_requires_known_config():
+    from dmm34411a import TemperatureProbe
+    tr = fake().on("SENSe:TEMPerature:ZERO:AUTO?", "1")
+    with DMM_34411A(transport=tr) as dmm:
+        dmm.configure_temperature(TemperatureProbe.RTD_2W)
+        dmm.metrology.set_autozero(F.TEMPERATURE, "ONCE")
+        assert dmm.metrology.get_autozero(F.TEMPERATURE)
+    assert tr.history == [
+        "*IDN?", "CONFigure:TEMPerature RTD,DEF",
+        "SENSe:TEMPerature:ZERO:AUTO ONCE",
+        "SENSe:TEMPerature:ZERO:AUTO?"
+    ]
+
+
+def test_frequency_period_snapshot_has_input_amplitude_and_filter():
+    tr = (fake()
+          .on("SENSe:FREQuency:VOLTage:RANGe?", "10")
+          .on("SENSe:FREQuency:VOLTage:RANGe:AUTO?", "0")
+          .on("SENSe:FREQuency:APERture?", "0.01")
+          .on("SENSe:VOLTage:AC:BANDwidth?", "20"))
+    with DMM_34411A(transport=tr) as dmm:
+        result = dmm.metrology.snapshot(F.FREQUENCY)
+        assert result.range_value == 10
+        assert result.autorange is False
+        assert result.gate_time_seconds == 0.01
+        assert result.ac_bandwidth_hz == 20
+
+
+def test_read_with_settings_attaches_instrument_values_to_typed_reading():
+    tr = (fake()
+          .on("SENSe:VOLTage:AC:RANGe?", "10")
+          .on("SENSe:VOLTage:AC:RANGe:AUTO?", "0")
+          .on("SENSe:VOLTage:AC:RESolution?", "1.0e-4")
+          .on("SENSe:VOLTage:AC:BANDwidth?", "20")
+          .on("READ?", "1.250000E+00"))
+    with DMM_34411A(transport=tr) as dmm:
+        dmm.configure_ac_voltage()
+        result = dmm.metrology.read_with_settings()
+        assert result.value == 1.25
+        assert result.metrology is not None
+        assert result.metrology.function is F.AC_VOLTAGE
+        assert result.metrology.range_value == 10
+        assert result.metrology.ac_bandwidth_hz == 20
+        assert result.unit == "V"
+    assert tr.history.count("READ?") == 1
+    assert not any(x.startswith(("MEASure:", "*RST", "DATA:DELete")) for x in tr.history)
+
+
+def test_read_with_settings_requires_explicit_config():
+    tr = fake()
+    with DMM_34411A(transport=tr) as dmm:
+        with pytest.raises(RuntimeError):
+            dmm.metrology.read_with_settings()
+    assert tr.history == ["*IDN?"]

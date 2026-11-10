@@ -14,6 +14,14 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.3.2 P1-03 metrology hardening update
+
+Frequency and period voltage input ranging, shared AC voltage filter paths,
+explicit NPLC/aperture mode selection, guarded temperature autozero
+(4-wire RTD blocked), and a pre-read typed metrology snapshot were added in
+software. Physical HIL remains NOT RUN. Refer to the current
+[SCPI command mapping](SCPI_COMMAND_COVERAGE.md).
+
 ## v0.3.1 P1-03 metrology implementation update
 
 The `dmm.metrology` controller now implements numeric/symbolic manual

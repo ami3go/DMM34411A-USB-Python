@@ -12,7 +12,7 @@ from .driver import (
     DMM_34411A,
 )
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __all__ = [
     "DMM_34411A",
     "DEFAULT_TIMEOUT_S",

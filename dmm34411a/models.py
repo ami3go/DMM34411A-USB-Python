@@ -8,6 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .metrology import MetrologySnapshot
 
 
 class MeasurementFunction(str, Enum):
@@ -55,3 +59,4 @@ class MeasurementResult:
     raw: str
     measured_at_utc: datetime
     is_overrange: bool
+    metrology: MetrologySnapshot | None = None

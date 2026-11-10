@@ -29,6 +29,9 @@ _RANGE_LIMITS: dict[MeasurementFunction, tuple[float, float]] = {
     MeasurementFunction.RESISTANCE_2W: (100.0, 1.0e9),
     MeasurementFunction.RESISTANCE_4W: (100.0, 1.0e9),
     MeasurementFunction.CAPACITANCE: (1.0e-9, 1.0e-2),
+    # Frequency and period ranges are AC input VOLTAGE, not Hz or seconds.
+    MeasurementFunction.FREQUENCY: (0.1, 750.0),
+    MeasurementFunction.PERIOD: (0.1, 750.0),
 }
 _SENSE: dict[MeasurementFunction, str] = {
     MeasurementFunction.DC_VOLTAGE: "SENSe:VOLTage:DC",
@@ -58,6 +61,7 @@ _AUTOZERO = frozenset({
 })
 _AC = frozenset({MeasurementFunction.AC_VOLTAGE, MeasurementFunction.AC_CURRENT})
 _GATE = frozenset({MeasurementFunction.FREQUENCY, MeasurementFunction.PERIOD})
+_AC_FILTER = _AC | _GATE
 _OHMS = frozenset({MeasurementFunction.RESISTANCE_2W, MeasurementFunction.RESISTANCE_4W})
 _NPLC = (0.001, 0.002, 0.006, 0.02, 0.06, 0.2, 1.0, 2.0, 10.0, 100.0)
 _GATE_VALUES = (0.001, 0.01, 0.1, 1.0)
@@ -171,24 +175,36 @@ class MetrologyController:
     def _flag_query(self, scpi: str) -> bool:
         return _parse_flag(self._meter.client.query(scpi), scpi)
 
-    def set_range(self, function: MeasurementFunction, value: float | str) -> None:
+    @staticmethod
+    def _range_header(function: MeasurementFunction) -> str:
         prefix = _function(function, _RANGE_LIMITS)
+        # FREQ/PER select the AC input amplitude in VOLTS. The SCPI
+        # subtree is :VOLTage:RANGe, not a frequency/period range.
+        return f"{prefix}:VOLTage:RANGe" if function in _GATE else f"{prefix}:RANGe"
+
+    def set_range(self, function: MeasurementFunction, value: float | str) -> None:
+        header = self._range_header(function)
         if isinstance(value, str):
             selected = _choice(value, allowed=frozenset({"AUTO", "MIN", "MAX"}), name="range")
         else:
             lo, hi = _RANGE_LIMITS[function]
             selected = _numeric(value, name="range", minimum=lo, maximum=hi)
-        self._write(f"{prefix}:RANGe {selected}")
+        if selected == "AUTO" and function in _GATE:
+            # PERIOD:VOLTage:RANGe does not list bare AUTO in every
+            # programming reference; the explicit :AUTO subcommand does.
+            self._write(f"{header}:AUTO ON")
+        else:
+            self._write(f"{header} {selected}")
 
     def get_range(self, function: MeasurementFunction) -> float:
-        return self._float_query(f"{_function(function, _RANGE_LIMITS)}:RANGe?")
+        return self._float_query(f"{self._range_header(function)}?")
 
     def set_autorange(self, function: MeasurementFunction, enabled: bool) -> None:
-        prefix = _function(function, _RANGE_LIMITS)
-        self._write(f"{prefix}:RANGe:AUTO {_flag(enabled)}")
+        header = self._range_header(function)
+        self._write(f"{header}:AUTO {_flag(enabled)}")
 
     def get_autorange(self, function: MeasurementFunction) -> bool:
-        return self._flag_query(f"{_function(function, _RANGE_LIMITS)}:RANGe:AUTO?")
+        return self._flag_query(f"{self._range_header(function)}:AUTO?")
 
     def set_resolution(self, function: MeasurementFunction, value: float | str) -> None:
         prefix = _function(function, _RESOLUTION)
@@ -214,7 +230,12 @@ class MetrologyController:
                 raise ConfigurationError(f"NPLC must be one of {_NPLC}")
             if float(value) in (0.001, 0.002):
                 self._require_fast_model()
-        self._write(f"{prefix}:NPLC {selected}")
+        # NPLC and aperture are mutually exclusive integration methods.
+        # Do not leave a previous aperture-enabled setting silently active.
+        # On transport fault, surface uncertainty; do not retry either write.
+        with self._meter.session.operation_lock():
+            self._write(f"{prefix}:NPLC {selected}")
+            self._write(f"{self._aperture_enable_header(function)} OFF")
 
     def get_nplc(self, function: MeasurementFunction) -> float:
         return self._float_query(f"{_function(function, _INTEGRATION)}:NPLC?")
@@ -227,7 +248,9 @@ class MetrologyController:
             selected = _numeric(seconds, name="aperture", minimum=0.00002, maximum=1.0)
             if float(seconds) < 0.0001:
                 self._require_fast_model()
-        self._write(f"{prefix}:APERture {selected}")
+        with self._meter.session.operation_lock():
+            self._write(f"{prefix}:APERture {selected}")
+            self._write(f"{self._aperture_enable_header(function)} ON")
 
     def get_aperture(self, function: MeasurementFunction) -> float:
         return self._float_query(f"{_function(function, _INTEGRATION)}:APERture?")
@@ -246,23 +269,46 @@ class MetrologyController:
     def get_aperture_enabled(self, function: MeasurementFunction) -> bool:
         return self._flag_query(f"{self._aperture_enable_header(function)}?")
 
+    def _autozero_header(self, function: MeasurementFunction) -> str:
+        prefix = _function(function, _AUTOZERO)
+        if function is MeasurementFunction.TEMPERATURE:
+            # User Guide: autozero is ALWAYS enabled on four-wire
+            # temperature, and selectable only for two-wire probes.
+            active = self._meter.measurement._active
+            from .models import TemperatureProbe
+            if active is None or active.function is not MeasurementFunction.TEMPERATURE or (
+                active.temperature_probe not in (
+                    TemperatureProbe.RTD_2W, TemperatureProbe.THERMISTOR_2W
+                )
+            ):
+                raise UnsupportedOperationError(
+                    "temperature autozero requires explicitly configured 2-wire probe"
+                )
+        return f"{prefix}:ZERO:AUTO"
+
     def set_autozero(
         self, function: MeasurementFunction, state: bool | str
     ) -> None:
-        prefix = _function(function, _AUTOZERO)
+        header = self._autozero_header(function)
         if state == "ONCE" and type(state) is str:
             flag = "ONCE"
         else:
             flag = _flag(state)
-        self._write(f"{prefix}:ZERO:AUTO {flag}")
+        self._write(f"{header} {flag}")
 
     def get_autozero(self, function: MeasurementFunction) -> bool:
-        return self._flag_query(f"{_function(function, _AUTOZERO)}:ZERO:AUTO?")
+        return self._flag_query(self._autozero_header(function) + "?")
+
+    @staticmethod
+    def _ac_filter_prefix(function: MeasurementFunction) -> str:
+        prefix = _function(function, _AC_FILTER)
+        # Frequency and period use the AC voltage input filter.
+        return "SENSe:VOLTage:AC" if function in _GATE else prefix
 
     def set_ac_bandwidth(
         self, function: MeasurementFunction, hz: int | str
     ) -> None:
-        prefix = _function(function, _AC)
+        prefix = self._ac_filter_prefix(function)
         if isinstance(hz, str):
             selected = _choice(hz, allowed=_SELECTORS, name="AC bandwidth")
         elif type(hz) is int and hz in _BANDWIDTH:
@@ -272,7 +318,7 @@ class MetrologyController:
         self._write(f"{prefix}:BANDwidth {selected}")
 
     def get_ac_bandwidth(self, function: MeasurementFunction) -> float:
-        return self._float_query(f"{_function(function, _AC)}:BANDwidth?")
+        return self._float_query(f"{self._ac_filter_prefix(function)}:BANDwidth?")
 
     def set_gate_time(self, function: MeasurementFunction, seconds: float | str) -> None:
         prefix = _function(function, _GATE)
@@ -351,8 +397,18 @@ class MetrologyController:
                 aperture_seconds = self.get_aperture(function)
                 aperture_enabled = self.get_aperture_enabled(function)
             if function in _AUTOZERO:
-                autozero = self.get_autozero(function)
-            if function in _AC:
+                if function is not MeasurementFunction.TEMPERATURE:
+                    autozero = self.get_autozero(function)
+                else:
+                    from .models import TemperatureProbe
+                    active = self._meter.measurement._active
+                    if active is not None and active.function is function and (
+                        active.temperature_probe in (
+                            TemperatureProbe.RTD_2W, TemperatureProbe.THERMISTOR_2W
+                        )
+                    ):
+                        autozero = self.get_autozero(function)
+            if function in _AC_FILTER:
                 ac_bandwidth = self.get_ac_bandwidth(function)
             if function in _GATE:
                 gate_time = self.get_gate_time(function)
@@ -367,3 +423,20 @@ class MetrologyController:
                 ac_bandwidth_hz=ac_bandwidth, gate_time_seconds=gate_time,
                 offset_compensated=offset, input_impedance_auto=input_z,
             )
+
+    def read_with_settings(self):
+        """Return READ? with live pre-read metrology snapshot attached.
+
+        This is one-session-serialized ordering, not an atomic instrument
+        snapshot or individual sample timestamp. External controllers may
+        still change settings; do not infer stronger guarantees.
+        """
+        from dataclasses import replace
+
+        with self._meter.session.operation_lock():
+            active = self._meter.measurement._active
+            if active is None or self._meter.measurement._generation != self._meter.session.generation:
+                raise RuntimeError("configure a typed measurement before read_with_settings")
+            meta = self.snapshot(active.function)
+            reading = self._meter.measurement.read()
+            return replace(reading, metrology=meta)
