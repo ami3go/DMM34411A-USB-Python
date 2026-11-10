@@ -144,8 +144,8 @@ class AcquisitionController:
         self.client.write("ABORt")
         self._completed = False
 
-    def _point_count(self, memory: str, maximum: int) -> int:
-        response = self.client.query(f"DATA:POINts? {memory}").strip()
+    def _point_count(self, memory: str, maximum: int, timeout_s: float | None = None) -> int:
+        response = self.client.query(f"DATA:POINts? {memory}", timeout_s=timeout_s).strip()
         try:
             number = float(response)
         except ValueError as exc:
@@ -154,8 +154,8 @@ class AcquisitionController:
             raise ValueError(f"invalid {memory} count: {response!r}")
         return int(number)
 
-    def volatile_count(self) -> int:
-        return self._point_count("RDG_STORE", VOLATILE_MEMORY_POINTS)
+    def volatile_count(self, timeout_s: float | None = None) -> int:
+        return self._point_count("RDG_STORE", VOLATILE_MEMORY_POINTS, timeout_s=timeout_s)
 
     def nvm_count(self) -> int:
         return self._point_count("NVMEM", NONVOLATILE_MEMORY_POINTS)
@@ -184,7 +184,7 @@ class AcquisitionController:
             if remaining <= 0:
                 raise TimeoutError("acquisition timed out")
             # Request uses a finite remaining budget; each poll is individually bounded.
-            count = self.client.query_int("DATA:POINts? RDG_STORE", timeout_s=remaining)
+            count = self.volatile_count(timeout_s=remaining)
             if count < 0 or count > VOLATILE_MEMORY_POINTS:
                 raise ValueError(f"invalid volatile point count: {count}")
             if count >= self._target:
