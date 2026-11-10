@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — 2026-11-10 (P2-07 instrument math and statistics)
+
+- Add 34411A CALCulate statistics, dB/dBm, limits, enable/disable and
+  read-only live math state/thresholds using shared scpi-driver-core.
+- Guard destructive statistics clear with `confirm=True`, and refuse
+  implicit replacement of a different active math mode.
+- Add typed Statistics and Limits records; host limit comparison is not
+  represented as a hardware PASS/FAIL register.
+- Implement per-function SENSe:NULL offsets, avoiding deprecated CALC:NULL.
+- Add positive/negative simulator tests and HIL documentation.
+- No state-slot or display functionality in this release; reserved for P2-08.
+- Physical 34411A HIL NOT RUN.
+
+
 ## 0.3.2 — 2026-11-10 (P1-03 metrology hardening, offline only)
 
 - Extend the merged v0.3.1 controller with function-specific frequency/period

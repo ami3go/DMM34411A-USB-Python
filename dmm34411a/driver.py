@@ -21,6 +21,7 @@ from dmm34411a.acquisition import (
 )
 from dmm34411a.measurement import MeasurementController
 from dmm34411a.metrology import MetrologyController
+from dmm34411a.calculation import MathController
 from dmm34411a.models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
@@ -102,6 +103,7 @@ class DMM_34411A:
         self.acquisition = AcquisitionController(self)
         self.measurement = MeasurementController(self)
         self.metrology = MetrologyController(self)
+        self.math = MathController(self)
         if auto_open:
             self.open()
 

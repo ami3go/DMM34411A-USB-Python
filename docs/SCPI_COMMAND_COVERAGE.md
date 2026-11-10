@@ -78,3 +78,21 @@ metrology performance are not hardware-verified. Do not assert HIL passed.
 **Limits:** these command spellings are documented for the 34410A/34411A
 family; real instrument acceptance, firmware behavior and settings/accuracy
 must still be checked in hardware. This table is a command mapping, not an HIL report.
+
+## v0.4.0 P2-07 math and per-function null command mapping
+
+| Capability | SCPI set / action | SCPI readback | Driver method | Qualification |
+| --- | --- | --- | --- | --- |
+| Exclusive math mode | `CALCulate:FUNCtion AVERage/DB/DBM/LIMit`, `:STATe ON` | `CALCulate:FUNCtion?`, `:STATe?` | `math.enable_statistics/configure_*/selected_mode/enabled` | Offline; HIL NOT RUN |
+| Statistics snapshot | No write | `CALCulate:AVERage:{AVERage,MINimum,MAXimum,SDEViation,PTPeak,COUNt}?` | `math.read_statistics()` | Count=0 produces no fabricated values |
+| Explicit statistics clear | `CALCulate:AVERage:CLEar` | — | `math.clear_statistics(confirm=True)` | Destructive; opt-in only |
+| dB reference | `CALCulate:DB:REFerence <value>` | `CALCulate:DB:REFerence?` | `math.configure_db/get_db_reference` | Voltage mode only |
+| dBm reference | `CALCulate:DBM:REFerence <ohms>` | `CALCulate:DBM:REFerence?` | `math.configure_dbm/get_dbm_reference` | Documented resistances only |
+| Limit thresholds | `CALCulate:LIMit:LOWer/UPPer <value>` | `:LOWer?`, `:UPPer?` | `math.configure_limits/get_limits/evaluate_limits` | Host-side comparison |
+| Per-function null | `SENSe:<function>:NULL:VALue <value>`, `:STATe ON/OFF` | `:VALue?`, `:STATe?` | `math.set_null/get_null` | No deprecated CALC:NULL |
+| Stop math | `CALCulate:STATe OFF` | `:STATe?` | `math.disable()` | No reset |
+
+**User Guide warning:** enabling statistics, setting CALCulate:FUNCtion while
+active, or changing measurement function clears accumulated statistics.
+This implementation refuses silent math mode replacement but cannot
+guarantee preservation when another controller changes the instrument.
