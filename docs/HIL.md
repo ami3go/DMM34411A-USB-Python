@@ -113,3 +113,34 @@ uses a scripted device and is not evidence of hardware buffer semantics.
 
 Do not silently overwrite existing NVM. \`DATA:COPY\` append/overwrite
 semantics when NVM has data remain intentionally unsupported.
+
+## v0.3.0 typed measurement modes — physical acceptance (NOT RUN)
+
+This is an operator-controlled manual qualification matrix, **not an
+instruction to automatically cycle modes**. DC/AC current tests require a
+properly fused and verified current fixture; resistance, capacitance, diode
+and thermistor/RTD tests require deenergized, appropriately wired standards.
+
+1. Record DMM model/firmware/serial, calibration date, probe fixture, USB/LAN
+   connection, uncertainty budget, driver version and core commit.
+2. DC voltage: compare typed `measure_dc_voltage()` against the historical
+   string method on a known safe reference; verify no implicit `*RST` or clear.
+3. AC voltage: verify RMS at two traceable frequencies and instrument-selected
+   bandwidth setting. Record `MEAS:VOLT:AC?` and numeric uncertainty.
+4. Current AC/DC: only after independent current-input wiring authorization.
+   Check fuse, range and burden-voltage limits; never switch automatically.
+5. Frequency and period: use a known frequency reference, compare to
+   source uncertainty and gate-time-dependent resolution.
+6. 2-/4-wire resistance: use correctly wired resistance standards.
+7. Capacitance, continuity and diode: safe unpowered fixture only; record
+   source/excitation behavior and overload thresholds; no live circuits.
+8. 2-/4-wire RTD and thermistor: use approved standards; query
+   `UNIT:TEMPerature?`, verify probe setup, default coefficient and output units.
+9. Test open/overload replies and malformed response detection. Verify the
+   physical instrument's overload encoding (+/-9.9E37).
+10. Record detailed SCPI traces, expected/actual values, calibration
+    uncertainty, PASS/FAIL/NOT RUN and bench approval. Hardware results are
+    not inferred from the offline simulator.
+
+Do not qualify numeric range limits, NPLC, aperture or probe coefficient
+options until the subsequent metrology implementation/bench work.

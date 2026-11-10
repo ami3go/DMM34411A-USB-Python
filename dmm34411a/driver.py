@@ -19,6 +19,8 @@ from dmm34411a.acquisition import (
     VOLATILE_MEMORY_POINTS,
     NONVOLATILE_MEMORY_POINTS,
 )
+from dmm34411a.measurement import MeasurementController
+from dmm34411a.models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
 
@@ -97,6 +99,7 @@ class DMM_34411A:
         self.session = ScpiSession("dmm34411a", self.client)
         self.idn: str | None = None
         self.acquisition = AcquisitionController(self)
+        self.measurement = MeasurementController(self)
         if auto_open:
             self.open()
 
@@ -166,9 +169,13 @@ class DMM_34411A:
         self.cmd_write(":CONFigure:CURRent:DC: AUTO")
 
     def cmd_write(self, txt_cmd: str) -> None:
+        # External SCPI may change the instrument's configured measurement mode.
+        self.measurement.invalidate()
         self.client.write(txt_cmd)
 
     def cmd_query(self, txt_cmd: str) -> str:
+        # Raw queries can include MEASure? which reconfigures the instrument.
+        self.measurement.invalidate()
         # Retain the legacy string result; remove only line termination.
         return self.client.query(txt_cmd).rstrip("\r\n")
 
@@ -187,6 +194,108 @@ class DMM_34411A:
     def measure_current_dc(self) -> str:
         return self.cmd_query("MEASure:CURRent:DC? AUTO ,MAX")
 
+
+    # -- v0.3.0 typed measurement interface -------------------------------
+
+    def configure_dc_voltage(self) -> None:
+        """Explicitly configure the meter for dc voltage."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.DC_VOLTAGE))
+
+    def measure_dc_voltage(self) -> MeasurementResult:
+        """Explicit one-shot dc voltage measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.DC_VOLTAGE))
+
+    def configure_ac_voltage(self) -> None:
+        """Explicitly configure the meter for ac voltage."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.AC_VOLTAGE))
+
+    def measure_ac_voltage(self) -> MeasurementResult:
+        """Explicit one-shot ac voltage measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.AC_VOLTAGE))
+
+    def configure_dc_current(self) -> None:
+        """Explicitly configure the meter for dc current."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.DC_CURRENT))
+
+    def measure_dc_current(self) -> MeasurementResult:
+        """Explicit one-shot dc current measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.DC_CURRENT))
+
+    def configure_ac_current(self) -> None:
+        """Explicitly configure the meter for ac current."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.AC_CURRENT))
+
+    def measure_ac_current(self) -> MeasurementResult:
+        """Explicit one-shot ac current measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.AC_CURRENT))
+
+    def configure_resistance_2wire(self) -> None:
+        """Explicitly configure the meter for resistance 2wire."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.RESISTANCE_2W))
+
+    def measure_resistance_2wire(self) -> MeasurementResult:
+        """Explicit one-shot resistance 2wire measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.RESISTANCE_2W))
+
+    def configure_resistance_4wire(self) -> None:
+        """Explicitly configure the meter for resistance 4wire."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.RESISTANCE_4W))
+
+    def measure_resistance_4wire(self) -> MeasurementResult:
+        """Explicit one-shot resistance 4wire measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.RESISTANCE_4W))
+
+    def configure_frequency(self) -> None:
+        """Explicitly configure the meter for frequency."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.FREQUENCY))
+
+    def measure_frequency(self) -> MeasurementResult:
+        """Explicit one-shot frequency measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.FREQUENCY))
+
+    def configure_period(self) -> None:
+        """Explicitly configure the meter for period."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.PERIOD))
+
+    def measure_period(self) -> MeasurementResult:
+        """Explicit one-shot period measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.PERIOD))
+
+    def configure_capacitance(self) -> None:
+        """Explicitly configure the meter for capacitance."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.CAPACITANCE))
+
+    def measure_capacitance(self) -> MeasurementResult:
+        """Explicit one-shot capacitance measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.CAPACITANCE))
+
+    def configure_continuity(self) -> None:
+        """Explicitly configure the meter for continuity."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.CONTINUITY))
+
+    def measure_continuity(self) -> MeasurementResult:
+        """Explicit one-shot continuity measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.CONTINUITY))
+
+    def configure_diode(self) -> None:
+        """Explicitly configure the meter for diode."""
+        self.measurement.configure(MeasurementConfig(MeasurementFunction.DIODE))
+
+    def measure_diode(self) -> MeasurementResult:
+        """Explicit one-shot diode measurement."""
+        return self.measurement.measure(MeasurementConfig(MeasurementFunction.DIODE))
+
+    def configure_temperature(self, probe: TemperatureProbe) -> None:
+        """Configure RTD 2-wire, RTD 4-wire or 2-wire thermistor."""
+        self.measurement.configure(
+            MeasurementConfig(MeasurementFunction.TEMPERATURE, temperature_probe=probe)
+        )
+
+    def measure_temperature(self, probe: TemperatureProbe) -> MeasurementResult:
+        """One-shot temperature measurement with instrument-selected unit."""
+        return self.measurement.measure(
+            MeasurementConfig(MeasurementFunction.TEMPERATURE, temperature_probe=probe)
+        )
 
     # -- Keysight 34411A reading memory and finite acquisition -------------
 
@@ -277,6 +386,7 @@ class DMM_34411A:
         finally:
             self.idn = None
             self.acquisition.reset_on_close()
+            self.measurement.invalidate()
 
     def __enter__(self) -> DMM_34411A:
         if not self.session.is_connected:

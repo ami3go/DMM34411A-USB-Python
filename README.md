@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.2.1** (the original 2021 code had no package version). The core
+**Version: 0.3.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -141,6 +141,54 @@ qualification gate; see [the HIL checklist](docs/HIL.md).
 
 The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
 reference; it is not a substitute for 34411A HIL verification.
+
+## Typed measurement modes (v0.3.0)
+
+The new `dmm.measurement` API provides explicit configuration and single
+readings for **DC/AC voltage, DC/AC current, 2-/4-wire resistance,
+frequency, period, capacitance, continuity, diode and RTD/thermistor temperature**.
+This is a *software-only*, bench-unqualified increment of
+[DMM34411A-FULL-API-001](task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
+The original `measure_voltage()`, `conf_resistane_4wire()` and other
+legacy methods are untouched and still return raw strings.
+
+```python
+from dmm34411a import (
+    DMM_34411A, MeasurementConfig, MeasurementFunction, TemperatureProbe
+)
+
+# AC voltage fixture should be connected by the operator first.
+with DMM_34411A(resource_name="USB0::...::INSTR", timeout_s=10.0) as dmm:
+    dmm.configure_ac_voltage()             # config only, does not start a reading
+    measurement = dmm.measurement.read()   # READ? and typed result
+    print(measurement.value, measurement.unit, measurement.is_overrange)
+    print(dmm.measure_frequency())         # one-shot MEASure:FREQuency?
+    # dmm.configure_temperature(TemperatureProbe.RTD_4W)  # requires RTD wiring
+```
+
+The typed `MeasurementResult` retains the raw instrument response and a
+**host receipt timestamp (UTC)**, never a fabricated instrument sample time.
+The remote overload code `+/-9.9E37` is returned as
+`value=None, is_overrange=True`; invalid/multiple replies raise.
+Temperature reads query `UNIT:TEMPerature?` so output units are not assumed.
+
+Advanced callers can use `dmm.measurement.configure(MeasurementConfig(...))`.
+Only explicit symbolic `range_spec` (AUTO/MIN/MAX/DEF) and
+`resolution` (MIN/MAX/DEF) are accepted in this increment, and only on
+functions that support them. Manual numeric range, NPLC, aperture, digits,
+and probe coefficients are reserved for the next metrology PR.
+Continuity and diode use fixed instrument ranges. Thermistor support in this
+API is **2-wire**; RTD supports 2-wire and 4-wire. Never automatically switch
+a connected fixture to current/ohms/diode/capacitance mode.
+
+Calling raw `dmm.cmd_write()` or `dmm.cmd_query()` invalidates the local
+typed measurement configuration cache. Direct `dmm.client` access does
+not automatically invalidate it; reconfigure explicitly after any external
+configuration changes. `get_configuration_raw()` queries the live
+`CONFigure?` setting.
+
+Sources: [34410A/34411A Command Quick Reference](https://www.keysight.com/us/en/assets/9018-61141/programming-guides/9018-61141.pdf),
+[34410A/34411A User's Guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf).
 
 ## Planned full SCPI function coverage
 

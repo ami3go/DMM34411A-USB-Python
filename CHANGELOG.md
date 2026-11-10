@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 — 2026-11-10 (software-only P0-01/P1-02 increment)
+
+- Add typed, model-specific measurement configuration and one-shot read API
+  for DC/AC voltage/current, 2-/4-wire resistance, frequency, period,
+  capacitance, continuity, diode, 2-/4-wire RTD and thermistor temperature.
+- Use scpi-driver-core ScpiClient/ScpiSession for all commands; no new transport.
+- Add config validation with no SCPI sent for invalid options, local state
+  invalidation on raw commands/close, unit readback for temperature, and
+  raw-response/UTC-host-time/overrange metadata.
+- Preserve all legacy method signatures, legacy string responses, and USB/LAN
+  support; do not implicitly reset, clear, measure or delete NVM data.
+- Manual numeric ranges, NPLC/aperture, sensor coefficients and advanced
+  triggering are separate follow-up work packages.
+- Add deterministic command mapping and negative/failure tests.
+- No physical hardware HIL evidence is claimed.
+
+
 ## 0.2.1 — 2026-11-10 (planning-only)
 
 - Add `task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md` with a detailed
