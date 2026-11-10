@@ -12,6 +12,13 @@ from typing import Literal
 from scpi_driver_core.exceptions import ConfigurationError
 
 from scpi_driver_core import ScpiClient, ScpiSession, UnsupportedOperationError
+from dmm34411a.acquisition import (
+    AcquisitionController,
+    ACQUISITION_TIMEOUT_S,
+    READBACK_TIMEOUT_S,
+    VOLATILE_MEMORY_POINTS,
+    NONVOLATILE_MEMORY_POINTS,
+)
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
 
@@ -84,11 +91,12 @@ class DMM_34411A:
         # BACKEND_DEFINED_MESSAGE. The codec strips a trailing LF, if present.
         self.client = ScpiClient(
             self.transport,
-            codec=ScpiTextCodec(response_terminator=b"\n"),
+            codec=ScpiTextCodec(response_terminator=b"\n", maximum_response_size=8 * 1024 * 1024),
             timeout_s=timeout_s,
         )
         self.session = ScpiSession("dmm34411a", self.client)
         self.idn: str | None = None
+        self.acquisition = AcquisitionController(self)
         if auto_open:
             self.open()
 
@@ -179,6 +187,83 @@ class DMM_34411A:
     def measure_current_dc(self) -> str:
         return self.cmd_query("MEASure:CURRent:DC? AUTO ,MAX")
 
+
+    # -- Keysight 34411A reading memory and finite acquisition -------------
+
+    def configure_volatile_acquisition(
+        self, points: int, sample_interval_seconds: float | None = None,
+        trigger_source: str = "IMMEDIATE", trigger_delay_seconds: float | None = None,
+    ) -> int:
+        return self.acquisition.configure(
+            points, sample_interval_seconds=sample_interval_seconds,
+            trigger_source=trigger_source, trigger_delay_seconds=trigger_delay_seconds,
+        )
+
+    def configure_data_log(
+        self, points: int, sample_interval_seconds: float | None = None,
+        trigger_source: str = "IMMEDIATE", trigger_delay_seconds: float | None = None,
+    ) -> int:
+        return self.acquisition.configure(
+            points, sample_interval_seconds=sample_interval_seconds,
+            trigger_source=trigger_source, trigger_delay_seconds=trigger_delay_seconds,
+            persist=True,
+        )
+
+    def start_acquisition(self) -> None:
+        self.acquisition.initiate()
+
+    def start_data_log(self, clear_existing: bool = False) -> None:
+        """Start logging without silently erasing any existing NVM readings."""
+        self.acquisition.initiate(log=True, clear_existing=clear_existing)
+
+    def volatile_point_count(self) -> int:
+        return self.acquisition.volatile_count()
+
+    def nonvolatile_point_count(self) -> int:
+        return self.acquisition.nvm_count()
+
+    def volatile_acquisition_progress(self) -> dict[str, int | bool]:
+        return self.acquisition.progress()
+
+    def data_log_progress(self) -> dict[str, int | bool]:
+        return self.acquisition.progress()
+
+    def wait_for_data_log(
+        self, timeout_seconds: float | None = None,
+        poll_interval_seconds: float = 0.1, save: bool = True,
+    ) -> int:
+        if self.acquisition._log_target is None:
+            raise RuntimeError("configure a data log before waiting")
+        count = self.acquisition.wait_complete(
+            timeout_s=timeout_seconds, poll_interval_s=poll_interval_seconds
+        )
+        if save:
+            return self.acquisition.copy_to_nvm()
+        return count
+
+    def save_data_log(self, timeout_ms: float = ACQUISITION_TIMEOUT_S * 1000) -> int:
+        return self.acquisition.copy_to_nvm(timeout_s=timeout_ms / 1000.0)
+
+    def read_data_log(self, timeout_ms: float = READBACK_TIMEOUT_S * 1000) -> list[float]:
+        return self.acquisition.read_nvm(timeout_s=timeout_ms / 1000.0)
+
+    def delete_data_log(self, *, confirm: bool = False) -> None:
+        self.acquisition.delete_nvm(confirm=confirm)
+
+    def read_volatile_readings(
+        self, erase: bool = False, max_points: int | None = None,
+        timeout_ms: float = READBACK_TIMEOUT_S * 1000,
+    ) -> list[float]:
+        return self.acquisition.read_volatile(
+            erase=erase, max_points=max_points, timeout_s=timeout_ms / 1000.0
+        )
+
+    def abort_acquisition(self) -> None:
+        self.acquisition.abort()
+
+    def send_bus_trigger(self) -> None:
+        self.acquisition.send_bus_trigger()
+
     def device_clear(self) -> None:
         """Explicit VISA device clear; may abort an ongoing measurement."""
         if not isinstance(self.transport, SupportsDeviceClear):
@@ -191,6 +276,7 @@ class DMM_34411A:
             self.session.close()
         finally:
             self.idn = None
+            self.acquisition.reset_on_close()
 
     def __enter__(self) -> DMM_34411A:
         if not self.session.is_connected:

@@ -2,10 +2,28 @@
 
 **Audit date:** 2026-11-10  
 **Audited implementation:** `main` commit `b955b09168b347853063444a635316f68bf3c589` (v0.1.2).  
-**Document release:** v0.1.3, documentation-only.  
+**Document release:** v0.1.3 historical audit; see v0.2.0 update below.  
 **Implementation location:** `dmm34411a/driver.py`.  
 **Open feature PR:** [#1 — Internal memory logging](https://github.com/ami3go/DMM34411A-USB-Python/pull/1), unmerged and based on the legacy direct-PyVISA driver.  
 **Related task:** [DMM34411A-NVM-BUFFER-001](../task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md).
+
+## v0.2.0 memory implementation update
+
+This matrix was audited against **v0.1.2 main** and remains the historical
+baseline. As of the v0.2.0 implementation of PR #1, the following entries
+changed from **PR only** to **implemented in software (HIL NOT RUN)**:
+
+- Configure/start/abort finite acquisition, immediate/BUS/external trigger
+  selection, sample interval/trigger delay, progress/count for RDG_STORE.
+- Configured data logging, completion monitoring, copy to initially empty
+  NVM, NVM reading/counting and explicitly confirmed deletion.
+- ASCII FETCh and explicit DATA:REMove bounded to <= 20,000 readings per
+  call, with model-specific retention/destructive semantics requiring HIL.
+
+Still missing: 1M streaming acquisition, qualified binary data transfer,
+pretrigger, CSV with metadata/checksum, safe NVM replacement semantics,
+physical end-to-end testing and robust interrupted-transfer reconciliation.
+Read the current README for safety and control details.
 
 ## How coverage is scored
 

@@ -86,3 +86,30 @@ local TCP simulation and VXI-11 resource construction.
    no stale responses or implicit retries and explicit open/close behavior.
 8. Record raw SCPI traces, driver/core versions, PC environment, operator,
    timeout/reconnect behavior, results, and sign-off.
+
+## Memory acquisition and NVM HIL qualification (v0.2.0)
+
+**Status: NOT RUN; operator authorization required.** The automated suite
+uses a scripted device and is not evidence of hardware buffer semantics.
+
+1. Identify 34411A model, serial, firmware and connection (USB/LAN).
+   Verify a safely connected low-level DC voltage reference.
+2. Query \`DATA:POINts? NVMEM\` and preserve existing log externally.
+   Do not clear/erase any preexisting memory without explicit approval.
+3. With empty NVM only, configure 3 readings with immediate trigger and a
+   conservative timer, run \`start_data_log()\`, wait, copy and read back.
+4. Compare the 3 NVM values to the reference and inspect SCPI error queue.
+5. Test \`FETCh?\` with three known readings and verify volatile count
+   does not decrease. Test \`DATA:REMove? 1\` only with disposable readings,
+   record exact order and confirm count change (not tested in CI).
+6. Test longer run (1000 samples), bus trigger, abort, capacity boundaries
+   only if the bench fixture is qualified.
+7. Test NVM persistence across an explicitly approved power cycle.
+8. Test \`DATA:DELete NVMEM\` only after host backup and operator approval,
+   via \`delete_data_log(confirm=True)\`.
+9. Record raw commands and replies, timestamps, model serial/firmware,
+   host driver/core versions and calibration uncertainty.
+10. Do not mark HIL passed until tests and evidence are reviewed.
+
+Do not silently overwrite existing NVM. \`DATA:COPY\` append/overwrite
+semantics when NVM has data remain intentionally unsupported.

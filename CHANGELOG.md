@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0 — 2026-11-10 (memory logging software-only)
+
+- Port buffered measurement acquisition and NVM logging from historical
+  PR #1 to the existing scpi-driver-core-backed instrument driver.
+- Preserve USB/VXI-11/TCP socket connectivity and original single-reading
+  method signatures/return types.
+- Add finite acquisition, progress, abort, BUS trigger, volatile/NVM counts,
+  guarded copy to initially empty NVM and non-destructive NVM readback.
+- No implicit device clear or NVM erase. Deletion requires confirm=True;
+  existing NVM blocks start and copy; overwrite remains HIL-gated.
+- Add bounded ASCII readback and conservative 20k volatile fetch bound,
+  with format restoration and no retry for destructive memory operations.
+- Add hardware-free command/safety/failure tests and HIL checklist updates.
+- Physical 34411A memory behavior is NOT qualified; full streaming, host
+  export and advanced trigger behavior are still open.
+
+
 ## 0.1.3 — 2026-11-10 (audit documentation)
 
 - Add `docs/FEATURE_COVERAGE.md` — hardware-supported vs driver-implemented

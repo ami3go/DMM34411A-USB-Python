@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.1.3** (the original 2021 code had no package version). The core
+**Version: 0.2.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -142,9 +142,53 @@ qualification gate; see [the HIL checklist](docs/HIL.md).
 The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
 reference; it is not a substitute for 34411A HIL verification.
 
-## Planned measurement capture and NVM workflow
+## Reading memory and data logging (v0.2.0)
+
+This release ports the useful volatile and NVM logging functions from PR #1
+to the shared `scpi-driver-core` transport, so the same API works over USB,
+LAN/VXI-11, and LAN SCPI sockets. The 34411A has **1,000,000 volatile**
+and **50,000 nonvolatile** reading capacity.
+
+```python
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    dmm.conf_voltage_dc()
+    # Never deletes the instrument's existing nonvolatile readings.
+    dmm.configure_data_log(points=3, sample_interval_seconds=0.1)
+    dmm.start_data_log()              # raises FileExistsError if NVM is not empty
+    dmm.wait_for_data_log(timeout_seconds=10, save=True)
+    readings = dmm.read_data_log()    # e.g. [1.0, 1.0, 1.0]
+```
+
+New APIs: `configure_volatile_acquisition`, `start_acquisition`,
+`volatile_point_count`, `volatile_acquisition_progress`,
+`read_volatile_readings`, `configure_data_log`, `start_data_log`,
+`data_log_progress`, `wait_for_data_log`, `save_data_log`,
+`nonvolatile_point_count`, `read_data_log`, `delete_data_log`,
+`abort_acquisition`, `send_bus_trigger`.
+All are available through `dmm.acquisition` as well.
+
+**NVM preservation:** no `DATA:DELete` on connect, close, start, or
+error recovery. Explicit deletion requires
+`dmm.delete_data_log(confirm=True)`. NVM overwrite when data already exists
+is blocked even with `overwrite=True`, pending instrument firmware/HIL
+qualification. Save to empty NVM is allowed after finite acquisition completes.
+A COPY/REMOVE/DELETE transaction is never retried after uncertain I/O.
+
+**Volatile reads:** `read_volatile_readings()` uses `FETCh?`, limited
+to 20,000 readings per text response. For explicit destructive removal,
+`read_volatile_readings(erase=True, max_points=100)` uses
+`DATA:REMove? 100`. Both FETCh retention and destructive REMOVE
+semantics need actual 34411A HIL confirmation. New batch-reading methods
+return Python float lists; the original `measure_*` methods still return
+strings. This is not a fully qualified 1M-sample streaming API.
+
+For tests, follow `docs/HIL.md`; no physical 34411A has been tested.
+
+## Prior design and remaining work
 
 The [buffered capture/NVM implementation task](task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md)
-tracks the future v0.2.0 feature. It remains **unimplemented on main** in v0.1.3. The
+tracks extended qualification and future hardening. Basic memory logging
+is implemented in v0.2.0, but full streaming/export and physical HIL remain.
+The
 instrument supports a 1,000,000-reading volatile buffer and separate 50,000-
 reading nonvolatile storage; existing data must not be erased automatically.
