@@ -96,3 +96,23 @@ must still be checked in hardware. This table is a command mapping, not an HIL r
 active, or changing measurement function clears accumulated statistics.
 This implementation refuses silent math mode replacement but cannot
 guarantee preservation when another controller changes the instrument.
+
+## v0.5.0 P2-08 instrument states and display (software tested only)
+
+| Feature | SCPI set/write | SCPI query | Python | HIL |
+| --- | --- | --- | --- | --- |
+| State status/metadata | None | `MEMory:STATe:VALid? <slot>`, `MEMory:STATe:NAME? <slot>` | `storage.get_state/list_states` | NOT RUN |
+| Catalog | None | `MEMory:STATe:CATalog?` | `storage.catalog_raw` | NOT RUN |
+| Save current config | `*SAV <1..4>` | `:VALid?` before/after | `storage.save_state` | NOT RUN |
+| Recall config | `*RCL <1..4>` | `:VALid?` before | `storage.recall_state(confirm=True)` | NOT RUN |
+| Delete config | `MEMory:STATe:DELete <1..4>` | `:VALid?` | `storage.delete_state(confirm=True)` | NOT RUN |
+| Rename config | `MEMory:STATe:NAME <slot>,<NAME>` | `:NAME?` | `storage.rename_state` | NOT RUN |
+| Power-on restore | `MEMory:STATe:RECall:SELect <slot>`, `:AUTO ON/OFF` | `:SELect?`, `:AUTO?` | `storage.get_power_on_state/set_power_on_recall` | NOT RUN |
+| Window state | `DISPlay:WINDow1/2:STATe ON/OFF` | `:STATe?` | `display.set_enabled/get_enabled` | NOT RUN |
+| Window text | `DISPlay:WINDow1/2:TEXT "<text>"`, `:TEXT:CLEar` | `:TEXT?` | `display.set_text/get_text/clear_text` | NOT RUN |
+| Secondary feed | None | `DISPlay:WINDow2:TEXT:FEED?` | `display.get_secondary_feed` | NOT RUN |
+| Beeper | `SYSTem:BEEPer:IMMediate`, `:STATe ON/OFF` | `:STATe?` | `display.beep/get_beeper_enabled/set_beeper_enabled` | NOT RUN |
+
+**Distinction:** MEMory:STATe controls saved instrument configurations;
+NVMEM/RDG_STORE hold logged measurements. State 0 is power-down reserved.
+No implicit state overwrite, recall, restore change or display mutation.

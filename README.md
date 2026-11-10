@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.4.0** (the original 2021 code had no package version). The core
+**Version: 0.5.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -199,6 +199,54 @@ A `SENSe` metrology setting does not invalidate the active measurement
 **Hardware HIL status:** not run. See the detailed
 [HIL checklist](docs/HIL.md) and [SCPI matrix](docs/SCPI_COMMAND_COVERAGE.md).
 Official source references are linked there.
+
+## P2 instrument configuration slots and display (v0.5.0)
+
+The driver exposes two new explicit controllers: `dmm.storage` for
+nonvolatile **instrument configurations**, and `dmm.display` for the front
+panel. Stored configuration slots are **not** the NVMEM reading/data logger.
+
+```python
+from dmm34411a import DMM_34411A
+
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    print(dmm.storage.list_states())  # 1–4, queries only
+    dmm.storage.save_state(1)         # refuses to overwrite existing state
+    dmm.storage.rename_state(1, "CAL_STD")
+    # *RCL can change the measurement function/trigger configuration.
+    dmm.storage.recall_state(1, confirm=True)
+    dmm.display.set_text(2, "TEST READY")
+    dmm.display.clear_text(2)
+```
+
+**State safeguards:** Slots 1–4 are writable; slot 0 is reserved for
+power-down state and is available only for read-only status queries.
+`save_state(slot,overwrite=True,confirm=True)` is required if an existing
+slot is occupied. `delete_state(slot,confirm=True)` deletes a stored
+configuration, not NVM measurement data. `recall_state(slot,confirm=True)`
+can change live measurement mode and invalidates the local typed-measurement
+and acquisition state caches. It never automatically retries after an
+uncertain timeout.
+
+Power-on configuration is persistent and can change subsequent startup
+behavior. `get_power_on_state()` queries selection and enabled state.
+`set_power_on_recall(True, slot, confirm=True)` only accepts a valid
+nonempty user slot; `set_power_on_recall(False, confirm=True)` disables
+automatic recall. **Disabling auto-recall may change the startup behavior
+to factory defaults**. These operations are never called implicitly.
+
+`dmm.display` provides `set_enabled/get_enabled(window)`,
+`set_text/get_text(window)`, `clear_text(window)` for windows 1 and 2,
+`get_secondary_feed()` (query only), and explicit beeper controls. The
+text setter uses a conservative safe ASCII subset (1–12 chars) to prevent
+SCPI injection; this is a driver restriction, not a claim about the physical
+display capacity. Secondary-feed selection remains read-only until the
+firmware-specific allowed feed tokens are qualified.
+
+No display, state, power-on or beeper configuration is changed on connect
+or close. All new functions are **offline-tested only**; physical HIL is
+**NOT RUN**. See the [SCPI matrix](docs/SCPI_COMMAND_COVERAGE.md) and
+[physical checklist](docs/HIL.md).
 
 ## P2 math and statistics (v0.4.0)
 

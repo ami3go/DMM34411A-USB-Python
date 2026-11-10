@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0 — 2026-11-10 (P2-08 state and display)
+
+- Add safe persistent configuration state slots 1–4 with query/validation,
+  save, recall, delete, rename, catalog and opt-in power-on restore controls.
+- Restrict reserved power-down slot 0 to read-only queries. Refuse state
+  overwrites/deletes and live recalls without explicit confirmation.
+- Invalidate cached typed measurement/acquisition state after recall.
+- Add primary/secondary display visibility/text/clear/getter operations,
+  secondary feed query, and explicit beeper state/control.
+- Validate slot, state name, display window/text and flags before I/O.
+- Add deterministic scripted tests and operator-controlled HIL checklist.
+- No automatic reset, instrument clear, state overwrite, NVM deletion
+  or network reconfiguration. Physical HIL NOT RUN.
+
+
 ## 0.4.0 — 2026-11-10 (P2-07 instrument math and statistics)
 
 - Add 34411A CALCulate statistics, dB/dBm, limits, enable/disable and
