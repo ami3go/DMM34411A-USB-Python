@@ -14,6 +14,17 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.3.1 P1-03 metrology implementation update
+
+The `dmm.metrology` controller now implements numeric/symbolic manual
+range, autorange and resolution (function-dependent), DC NPLC, explicit
+aperture control, autozero, AC filter bandwidth, frequency/period gate
+time, DC input impedance, low-range resistance offset compensation,
+temperature units and live readback. Implemented in software with
+table-driven offline tests; **physical HIL NOT RUN**. See the latest
+[SCPI command matrix](SCPI_COMMAND_COVERAGE.md). The historical baseline
+tables below predate the v0.3.0 and v0.3.1 releases.
+
 ## v0.3.0 measurement implementation update
 
 The table below is historical (v0.1.2). As of v0.3.0 the driver provides

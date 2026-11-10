@@ -35,3 +35,29 @@ Reference; numeric manual range and aperture/NPLC controls belong to P1-03.
 - https://www.keysight.com/us/en/assets/9018-61141/programming-guides/9018-61141.pdf
 - https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf
 - https://www.keysight.com/us/en/assets/7018-01326/data-sheets/5989-3738.pdf
+
+## P1-03 Metrology commands (v0.3.1)
+
+| Setting | SCPI set / query | Modes | Model limits/validation | Offline | Physical HIL |
+| --- | --- | --- | --- | --- | --- |
+| Manual range | `SENSe:<fn>:RANGe <range>` / `...? ` | DCV/ACV, DCI/ACI, RES/FRES, CAP | positive SI numeric bounded to documented 34411A range or MIN/MAX/AUTO; device selects achievable range | Tested | NOT RUN |
+| Autorange | `SENSe:<fn>:RANGe:AUTO ON/OFF` / `...?` | same | bool | Tested | NOT RUN |
+| Resolution | `SENSe:<fn>:RESolution <value>` / `...?` | DCV/ACV, DCI/ACI, RES/FRES | SI numeric positive or MIN/MAX/DEF; readback may round | Tested | NOT RUN |
+| NPLC integration | `SENSe:<fn>:NPLC <PLCs>` / `...?` | DCV, DCI, RES/FRES, TEMP | 0.001/0.002 limited to 34411A; 0.006/0.02/0.06/0.2/1/2/10/100 | Tested | NOT RUN |
+| DC aperture | `SENSe:<fn>:APERture <seconds>` / `...?` | DCV, DCI, RES/FRES, TEMP | 20µs–1s (34411A), set enable separately | Tested | NOT RUN |
+| Aperture enable | `SENSe:<fn>:APERture:ENABled ON/OFF` / `...?` | DCV, DCI, RES, TEMP | bool; FRES uses documented `ENABle` suffix | Tested | NOT RUN |
+| Autozero | `SENSe:<fn>:ZERO:AUTO ON/OFF/ONCE` / `...?` | DCV, DCI, RES, TEMP | 4-wire Ω autozero is not user-selectable | Tested | NOT RUN |
+| AC RMS filter | `SENSe:VOLTage:AC:BANDwidth` or `CURRent:AC:BANDwidth` / `...?` | ACV/ACI | 3, 20, 200 Hz, MIN/MAX/DEF | Tested | NOT RUN |
+| Frequency/period gate | `SENSe:FREQuency:APERture` or `PERiod:APERture` / `...?` | FREQ/PER | 0.001/0.01/0.1/1s or MIN/MAX/DEF | Tested | NOT RUN |
+| DC input impedance | `SENSe:VOLTage:DC:IMPedance:AUTO ON/OFF` / `...?` | DCV | HI-Z for low voltage ranges only | Tested | NOT RUN |
+| Ohms offset compensation | `SENSe:RESistance:OCOMpensated`, `FRESistance:OCOMpensated` / `...?` | RES/FRES | only fixed 100Ω/1kΩ/10kΩ; pre-query range/autorange | Tested | NOT RUN |
+| Temperature units | `UNIT:TEMPerature C/F/K` / `...?` | TEMP | strict enum | Tested | NOT RUN |
+
+**Source of truth:** 
+- [34410A/11A User's Guide](https://www.keysight.com/qa/en/assets/9018-05586/user-manuals/9018-05586.pdf), pp. 17–23, 51–58.
+- [34410A/34411A SCPI comparison](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf), SENSE subsystem pp. 8–12.
+
+**Important:** Each setter targets the named SENSe function but does not
+select the active function. The command family is documented, while the
+actual connected firmware's behavior, limits, rounding and long-term
+metrology performance are not hardware-verified. Do not assert HIL passed.

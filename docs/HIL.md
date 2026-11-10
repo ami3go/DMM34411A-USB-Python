@@ -144,3 +144,42 @@ and thermistor/RTD tests require deenergized, appropriately wired standards.
 
 Do not qualify numeric range limits, NPLC, aperture or probe coefficient
 options until the subsequent metrology implementation/bench work.
+
+## v0.3.1 P1-03 metrology configuration qualification — NOT RUN
+
+Only use an instrument under explicit bench authorization; observe current
+terminal protection, correct 2W/4W wiring and reference limits. Use USB
+or LAN; do not perform a destructive instrument reset. Record serial,
+firmware, calibration status, transport/backend, software/core versions.
+
+1. Verify `set_range` / `get_range` and `set_autorange` /
+   `get_autorange` for a known low-voltage DC reference; record nominal
+   requested range versus effective readback. Test the DCV high-input-Z
+   setting only with a suitably high-impedance safe fixture.
+2. Repeat for AC voltage and resistance 2-/4-wire after operator-approved
+   fixture change. For current, **separate current input/fuse authorization**
+   is mandatory; do not script transition from a powered voltage circuit.
+3. Test `set_resolution` and query actual resolution for each eligible
+   mode; allow legitimate instrument rounding but not silent mismatch.
+4. Test 34411A DCV NPLC 0.001, 0.002, 1, 10, 100 and measure
+   acquisition/settling time and repeatability. Do not claim all settings
+   achieve rated accuracy at every speed.
+5. Test 20 µs, 100 µs, 1 ms, 1 s aperture and query `APERture:ENABled?`;
+   verify explicit aperture versus NPLC behavior and rejection on wrong model.
+6. Verify `ZERO:AUTO OFF/ON/ONCE` semantics on DCV and 2W resistance,
+   including speed versus offset. 4W resistance has autozero permanently on.
+7. Verify ACV/ACI bandwidth 3/20/200 Hz with a low-frequency sine source;
+   allow documented settling before taking readings.
+8. Verify frequency/period gate 1/10/100/1000 ms on a traceable frequency
+   reference; compare resolution and uncertainty.
+9. Offset-compensated ohms ON/OFF only at fixed 100Ω/1kΩ/10kΩ; check
+   disallowed high range/autorange cases and no write on rejection.
+10. Verify temperature C/F/K readback with a safe RTD/thermistor standard.
+11. Test invalid values, bool-as-number, NaN/Inf, readback anomalies,
+   multi-controller interference and connection timeout on an isolated
+   simulation before any fault-injection on real equipment.
+12. Collect raw SCPI transcript, requested/effective values, uncertainty,
+   fixture details, elapsed time, PASS/FAIL/NOT RUN and operator signoff.
+
+No actual hardware has been tested by this PR. Only Python offline CI is
+eligible for automated merging.

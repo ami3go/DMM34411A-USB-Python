@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dmm34411a-usb-python"
-version = "0.3.0"
+version = "0.3.1"
 description = "Keysight/Agilent 34411A USB and Ethernet SCPI DMM driver backed by scpi-driver-core"
 readme = "README.md"
 requires-python = ">=3.10"
