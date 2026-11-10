@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dmm34411a-usb-python"
+version = "0.2.0"
+description = "Keysight/Agilent 34411A USB and Ethernet SCPI DMM driver backed by scpi-driver-core"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Alexandr Chasnyk" }]
+keywords = ["34411A", "DMM", "SCPI", "PyVISA", "USBTMC", "Ethernet", "VXI-11", "TCP"]
+dependencies = [
+  "scpi-driver-core[visa] @ git+https://github.com/ami3go/scpi-driver-core.git@1e03b6837f96f200dc28233490639f2f080e1791",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8",
+  "pytest-timeout>=2.4,!=2.5.0",
+  "hypothesis>=6.100",
+  "pyvisa-sim>=0.7.1",
+  "build>=1.2",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["dmm34411a"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+timeout = 15
+session_timeout = 300
+markers = [
+  "hardware: requires an explicitly authorized physical instrument",
+  "integration: end-to-end simulation through VISA",
+  "visa_sim: PyVISA-sim tests",
+  "property: generated command-framing tests",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
