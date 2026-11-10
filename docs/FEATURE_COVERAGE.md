@@ -14,6 +14,17 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.3.0 measurement implementation update
+
+The table below is historical (v0.1.2). As of v0.3.0 the driver provides
+typed basic configuration and reading for AC/DC voltage/current,
+2-/4-wire resistance, frequency, period, capacitance, continuity, diode
+and temperature (RTD 2-/4-wire, thermistor 2-wire), implemented as
+`dmm.measurement` plus explicit convenience methods. All are
+**software-only / physical HIL NOT RUN**. Manual numeric ranges,
+integration time, aperture, trigger/streaming, status and math remain
+not implemented. See `docs/SCPI_COMMAND_COVERAGE.md`.
+
 ## v0.2.0 memory implementation update
 
 This matrix was audited against **v0.1.2 main** and remains the historical
