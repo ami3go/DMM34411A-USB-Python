@@ -64,3 +64,25 @@ script automatic transitions between voltage and current without a fixture.
   in a documented safe state.
 - Attach timestamped raw SCPI traces, reference uncertainties and operator
   sign-off before marking HIL as complete.
+
+## Ethernet LAN qualification
+
+**Status: NOT RUN.** These tests require bench authorization; CI only exercises
+local TCP simulation and VXI-11 resource construction.
+
+1. Enable LAN and VISA LAN (VXI-11) or SOCKETS on the DMM. Restart/power-cycle
+   when instrument service settings require it. Record IP, serial, and firmware.
+2. Restrict access to a trusted lab VLAN. Never expose socket port 5025 publicly.
+3. Verify the intended instrument IP and expected model/serial independently.
+4. With the hardware approved, run
+   DMM34411A_LAN_HOST=192.168.0.55 DMM34411A_LAN_PROTOCOL=vxi11
+   pytest -m hardware tests/hardware/test_real_lan.py -v
+   using a VXI-11-capable VISA backend.
+5. Change the protocol environment variable to socket and enable SOCKETS on
+   the DMM to qualify the native TCP/5025 connection without VISA.
+6. Compare a benign, operator-approved DC voltage reading over USB, LAN
+   VXI-11, and LAN socket within stated reference measurement uncertainty.
+7. Test a disconnect and reconnection only with bench authorization. Confirm
+   no stale responses or implicit retries and explicit open/close behavior.
+8. Record raw SCPI traces, driver/core versions, PC environment, operator,
+   timeout/reconnect behavior, results, and sign-off.

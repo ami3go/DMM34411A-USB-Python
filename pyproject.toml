@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dmm34411a-usb-python"
-version = "0.1.1"
-description = "Keysight/Agilent 34411A SCPI DMM driver backed by scpi-driver-core"
+version = "0.1.2"
+description = "Keysight/Agilent 34411A USB and Ethernet SCPI DMM driver backed by scpi-driver-core"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Alexandr Chasnyk" }]
-keywords = ["34411A", "DMM", "SCPI", "PyVISA", "USBTMC"]
+keywords = ["34411A", "DMM", "SCPI", "PyVISA", "USBTMC", "Ethernet", "VXI-11", "TCP"]
 dependencies = [
   "scpi-driver-core[visa] @ git+https://github.com/ami3go/scpi-driver-core.git@1e03b6837f96f200dc28233490639f2f080e1791",
 ]

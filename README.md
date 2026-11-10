@@ -1,9 +1,9 @@
-# Keysight / Agilent 34411A USB Python Driver
+# Keysight / Agilent 34411A USB and Ethernet Python Driver
 
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.1.1** (the original 2021 code had no package version). The core
+**Version: 0.1.2** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -43,6 +43,51 @@ code is still available but contains the serial number of a particular device:
 The old source-checkout import
 `from src.DMM34411A_class import DMM_34411A` continues to work when running
 from the repository root. Installed clients should import `dmm34411a`.
+
+## Ethernet / LAN connections
+
+The Keysight 34411A supports VISA LAN/VXI-11 and raw SCPI sockets on TCP/5025.
+Enable the corresponding LAN service using the instrument front panel
+(UTILITY MENU > REMOTE I/O > LAN). If LAN services are changed, power-cycle
+the instrument as described in its User's Guide.
+
+VXI-11 uses a LAN-capable VISA backend (Keysight IO Libraries, NI-VISA, or
+a supported pyvisa-py installation). It is the default Ethernet protocol:
+
+    from dmm34411a import DMM_34411A
+
+    with DMM_34411A.from_ethernet("192.168.0.55") as dmm:
+        print(dmm.idn)
+        print(dmm.measure_voltage())
+
+Equivalently, pass the full VISA resource name directly:
+
+    with DMM_34411A(resource_name="TCPIP0::192.168.0.55::inst0::INSTR") as dmm:
+        print(dmm.idn)
+
+A direct TCP socket needs no VISA backend:
+
+    with DMM_34411A.from_ethernet(
+        "192.168.0.55", protocol="socket", port=5025,
+        connect_timeout_s=3.0, timeout_s=5.0,
+    ) as dmm:
+        dmm.conf_voltage_dc()
+        print(dmm.cmd_read())
+
+The direct socket protocol sends LF-terminated ASCII commands and requires
+LF-terminated replies. Timeouts are finite; interrupted queries fault the
+transport to avoid stale reads. Socket transport does not provide VISA device
+clear (calling device_clear raises UnsupportedOperationError).
+Opening only sends *IDN? and never resets, clears, or starts measurements.
+
+Use auto_open=False to construct a transport without opening the connection.
+Provide an IPv4 address or DNS hostname, not a URL or full VISA resource,
+to from_ethernet. Keep the instrument on an isolated lab VLAN: SCPI socket
+connections are unencrypted and must not be exposed to the public Internet.
+
+Official manuals: [34410A/11A user guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf)
+and [LAN 34411A VXI-11/Socket examples](https://hpwiki.mcguirescientificservices.com/_media/application_notes%3Aan-1465-25.pdf).
+LAN real-hardware qualification is pending; see docs/HIL.md.
 
 ## Preserved legacy methods
 

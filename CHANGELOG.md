@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 — 2026-11-10
+
+- Add from_ethernet() for Keysight 34411A VISA LAN/VXI-11 and TCP socket/5025.
+- Use scpi-driver-core VisaTransport/TcpTransport; preserve legacy USB behavior.
+- Guard LAN host/protocol/port configuration and socket connect timeouts.
+- Add offline loopback socket tests and optional LAN hardware identity smoke test.
+- Physical Ethernet bench qualification remains pending.
+
+
 ## 0.1.1 — 2026-11-09 (planning-only)
 
 - Add documented implementation task DMM34411A-NVM-BUFFER-001 for buffered
