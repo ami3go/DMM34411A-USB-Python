@@ -230,3 +230,30 @@ input or changing live resistance/diode wiring.
    confirm independent null remains compatible with active math function.
 8. Capture actual SCPI transcript, source uncertainty, error queue,
    actual values and PASS/FAIL/NOT RUN. Never claim HIL from simulator.
+
+## v0.5.0 P2-08 configuration states/display HIL checklist — NOT RUN
+
+Physical authorization required; run only on a disconnected/safe DMM fixture
+with any existing configuration states and NVM readings backed up.
+
+1. Record the model, firmware, serial, connection, current measurement
+   function, trigger configuration, state catalog, four slot names and
+   power-on auto-recall state. Preserve existing data.
+2. Pick an unused user slot 1–4. Save current known safe DCV state and
+   validate `MEM:STAT:VALid?`, name, metadata and state catalog.
+3. Test deliberate re-save refusal without overwrite and dual confirmation;
+   never overwrite another operator's saved slot without a full backup.
+4. Recall after making an explicitly approved benign configuration change;
+   validate restored state and no blind restart of an acquisition. Do not
+   connect a powered DUT or unprotected current loop.
+5. Rename using an allowed <=12 ASCII name, query the name. Delete only
+   the disposable slot with `confirm=True`, verify it becomes invalid.
+6. Query power-on auto/selected slot. Changing persistent power-on behavior
+   may be prohibited in shared lab environments; if not authorized, leave it
+   NOT RUN, do not switch the meter off/on.
+7. On primary/secondary display: query visibility, set temporary text and
+   clear it. Check the front-panel readability and state readback.
+8. Query secondary feed without changing it. Optionally exercise the
+   beeper and beeper state only if audible operation is authorized.
+9. Verify open/close sends only IDN, no *RST, *CLS, *SAV, *RCL, display,
+   state deletion or NVM write. Document raw SCPI/errors and all results.

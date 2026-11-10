@@ -14,6 +14,15 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.5.0 P2-08 instrument state/display update
+
+Added safe nonvolatile **configuration slot** query/list/rename/save/recall/
+delete, persistent power-on recall control and primary/secondary display
+text/visibility, secondary feed query and beeper control. All changes are
+explicit; reserved state 0 is read-only and destructive/disruptive actions
+require confirmation. Physical HIL is still NOT RUN. NVM reading memory is
+independent of configuration storage.
+
 ## v0.4.0 P2-07 math and statistics update
 
 Implemented software-only: exclusive CALCulate statistics/mean/min/max/SDEV/
