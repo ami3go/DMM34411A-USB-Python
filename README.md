@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.1.2** (the original 2021 code had no package version). The core
+**Version: 0.1.3** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -89,6 +89,13 @@ Official manuals: [34410A/11A user guide](https://www.keysight.com/us/en/assets/
 and [LAN 34411A VXI-11/Socket examples](https://hpwiki.mcguirescientificservices.com/_media/application_notes%3Aan-1465-25.pdf).
 LAN real-hardware qualification is pending; see docs/HIL.md.
 
+## Supported and missing functions
+
+See the [34411A driver feature coverage matrix](docs/FEATURE_COVERAGE.md) for
+a source-audited comparison of the instrument's capabilities and this driver's
+implemented, partial, missing and PR-only features. Version 0.1.3 adds
+documentation, **not** new instrument functions.
+
 ## Preserved legacy methods
 
 | Config / control | Read / measurement |
@@ -138,6 +145,6 @@ reference; it is not a substitute for 34411A HIL verification.
 ## Planned measurement capture and NVM workflow
 
 The [buffered capture/NVM implementation task](task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md)
-tracks the future v0.2.0 feature. It is **not implemented** in v0.1.1. The
+tracks the future v0.2.0 feature. It remains **unimplemented on main** in v0.1.3. The
 instrument supports a 1,000,000-reading volatile buffer and separate 50,000-
 reading nonvolatile storage; existing data must not be erased automatically.

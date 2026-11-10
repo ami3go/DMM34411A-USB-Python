@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 — 2026-11-10 (audit documentation)
+
+- Add `docs/FEATURE_COVERAGE.md` — hardware-supported vs driver-implemented
+  coverage matrix, PR-only NVM features, testing/HIL status, safety blockers,
+  and prioritized implementation roadmap.
+- Clarify that NVM capture from open PR #1 is not available in the installable
+  driver on main, and that hardware qualification remains pending.
+- No new instrument commands or measurement features are implemented.
+
+
 ## 0.1.2 — 2026-11-10
 
 - Add from_ethernet() for Keysight 34411A VISA LAN/VXI-11 and TCP socket/5025.
