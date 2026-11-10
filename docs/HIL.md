@@ -205,3 +205,28 @@ eligible for automated merging.
    claim device-atomic metadata or per-sample timestamps.
 6. Record SCPI error queue without implicit clearing, command transcripts,
    serial, firmware, source accuracy and operator PASS/FAIL/NOT RUN.
+
+## v0.4.0 P2-07 math and statistics HIL plan — NOT RUN
+
+Operator-authorized safe DCV or ACV standard only; no auto-scanning current
+input or changing live resistance/diode wiring.
+
+1. Identify firmware/serial, calibration source, active measurement mode,
+   current `CALCulate:FUNCtion?` and `:STATe?` before any mutation.
+2. With DCV safely configured, enable stats, acquire 3 known readings, query
+   average/min/max/SDEV/peak-to-peak/count, compare with offline computation.
+3. Invoke enable_stats a second time: verify that same-mode idempotent
+   API call does not clear counters. Then explicitly clear statistics with
+   operator approval and `confirm=True`; verify counter returns to zero.
+4. Attempt enabling a different math mode with no `replace=True`; verify
+   it is rejected with **zero write operations**. Confirm `replace=True`
+   changes mode and note accumulator loss.
+5. dB and dBm: verify known voltage and valid resistor reference with expected
+   logarithmic math. Confirm invalid and unapproved reference values rejected.
+6. Limits: configure lower/upper and validate instrument annunciator and
+   host-side comparison separately. Verify no fabricated SCPI hardware
+   pass/fail query. Confirm limits clear on function change per manual.
+7. Per-function null: verify `SENSe:VOLTage:DC:NULL:VALue/STATe` readbacks;
+   confirm independent null remains compatible with active math function.
+8. Capture actual SCPI transcript, source uncertainty, error queue,
+   actual values and PASS/FAIL/NOT RUN. Never claim HIL from simulator.

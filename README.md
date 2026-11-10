@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.3.2** (the original 2021 code had no package version). The core
+**Version: 0.4.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -199,6 +199,48 @@ A `SENSe` metrology setting does not invalidate the active measurement
 **Hardware HIL status:** not run. See the detailed
 [HIL checklist](docs/HIL.md) and [SCPI matrix](docs/SCPI_COMMAND_COVERAGE.md).
 Official source references are linked there.
+
+## P2 math and statistics (v0.4.0)
+
+Use `dmm.math` for 34411A instrument-side CALCulate math and per-function
+null. No math is enabled or cleared at construction/open/close; it is
+**not safe** to assume enabling statistics preserves the previous accumulator.
+
+```python
+from dmm34411a import DMM_34411A
+
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    dmm.configure_dc_voltage()             # requires an approved DCV fixture
+    dmm.math.enable_statistics()           # first activation clears old statistics
+    # Take readings separately with dmm.measurement.read() or instrument acquisition
+    stats = dmm.math.read_statistics()     # count, mean, min/max, stddev, p-p
+    dmm.math.configure_limits(-1.0, 1.0, replace=True)
+    print(dmm.math.get_limits())           # reads instrument thresholds
+    print(dmm.math.evaluate_limits(0.5))  # host-side comparison, not DMM pass/fail
+```
+
+The 34411A supports one `CALCulate` math function at a time: statistics,
+dB, dBm or limits. `enable_statistics()`, `configure_db()`,
+`configure_dbm()`, and `configure_limits()` refuse to replace an active
+different mode unless `replace=True`. Calling `enable_statistics()`
+when statistics are **already active** does not send another activation
+and therefore avoids clearing the count again. To deliberately clear the
+accumulator, call `clear_statistics(confirm=True)`. `disable()` only
+turns `CALCulate:STATe OFF`, without resetting the meter.
+
+dB/dBm methods require explicit typed **voltage** configuration;
+dBm reference must be a Keysight-documented resistance value in ohms.
+Statistics and limits are unavailable for continuity/diode. `get_limits()`
+reads the actual instrument thresholds; `evaluate_limits()` is
+**host-side** numerical evaluation, not a claim of a hardware pass/fail
+SCPI register. `set_null(function, offset)` and `get_null(function)`
+use `SENSe:<function>:NULL` rather than deprecated `CALCulate:NULL`.
+
+Read-only queries are not guaranteed to form an atomic snapshot while
+other instrument controllers are running. Real firmware command acceptance
+and math/accumulator behavior are **HIL NOT RUN**. See
+[SCPI command coverage](docs/SCPI_COMMAND_COVERAGE.md) and
+[hardware checklist](docs/HIL.md).
 
 ## P1-03 metrology hardening (v0.3.2)
 

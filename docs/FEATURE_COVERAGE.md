@@ -14,6 +14,14 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.4.0 P2-07 math and statistics update
+
+Implemented software-only: exclusive CALCulate statistics/mean/min/max/SDEV/
+count/peak-to-peak, dB/dBm references, upper/lower limits and instrument
+threshold readback, typed host-side comparison, and per-function SENSe NULL.
+Function switches and statistics enabling may clear accumulated values.
+Physical HIL NOT RUN. P2-08 state slots/display remains missing.
+
 ## v0.3.2 P1-03 metrology hardening update
 
 Frequency and period voltage input ranging, shared AC voltage filter paths,
