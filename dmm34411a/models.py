@@ -46,6 +46,28 @@ class MeasurementConfig:
 
 
 @dataclass(frozen=True)
+class MetrologySettings:
+    """Actual instrument settings queried through SENSe, not cached requests.
+
+    Not all fields are applicable to all measurement functions; None means
+    unsupported or not queried, rather than zero or a default setting.
+    """
+
+    function: MeasurementFunction
+    range_value: float | None = None
+    autorange: bool | None = None
+    resolution: float | None = None
+    nplc: float | None = None
+    aperture_s: float | None = None
+    aperture_enabled: bool | None = None
+    autozero: bool | None = None
+    ac_bandwidth_hz: float | None = None
+    gate_time_s: float | None = None
+    dc_input_impedance_auto: bool | None = None
+    offset_compensated: bool | None = None
+
+
+@dataclass(frozen=True)
 class MeasurementResult:
     """One decoded reading with original text and host receipt time."""
 
@@ -55,3 +77,4 @@ class MeasurementResult:
     raw: str
     measured_at_utc: datetime
     is_overrange: bool
+    metrology: MetrologySettings | None = None

@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.3.0** (the original 2021 code had no package version). The core
+**Version: 0.4.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -141,6 +141,61 @@ qualification gate; see [the HIL checklist](docs/HIL.md).
 
 The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
 reference; it is not a substitute for 34411A HIL verification.
+
+## Metrology controls (v0.4.0 — P1-03)
+
+Use `dmm.metrology` to control the selected function's instrument metrology
+settings without changing the active measurement function. Each command uses
+the existing `scpi-driver-core` session and the same USB/VXI-11/TCP transports.
+
+```python
+from dmm34411a import DMM_34411A, MeasurementFunction as F
+
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    dmm.configure_dc_voltage()                # operator-approved DCV fixture
+    dmm.metrology.set_range(F.DC_VOLTAGE, 10.0)
+    dmm.metrology.set_nplc(F.DC_VOLTAGE, 10.0)
+    print(dmm.metrology.get_range(F.DC_VOLTAGE))
+    print(dmm.metrology.get_nplc(F.DC_VOLTAGE))
+    result = dmm.metrology.read_with_settings()
+    print(result.value, result.unit, result.metrology)
+```
+
+| API | Supported functions | Behavior |
+| --- | --- | --- |
+| `set_range/get_range` | DCV/ACV, DCI/ACI, 2-/4-wire Ω, capacitance, frequency/period input-voltage | Manual positive numeric range or MIN/MAX/DEF; AUTO enables autorange |
+| `set_autorange/get_autorange` | Same as range | Explicit on/off, no silent function switch |
+| `set_resolution/get_resolution` | DCV/ACV, DCI/ACI, 2-/4-wire Ω | Absolute resolution in base SI units or MIN/MAX/DEF |
+| `set_nplc/get_nplc` | DCV, DCI, 2-/4-wire Ω, temperature | 34411A listed NPLC settings; explicitly disables aperture mode |
+| `set_aperture/get_aperture` | Same as NPLC | 20 µs–1 s; explicitly enables aperture mode |
+| `set_aperture_enabled/get_aperture_enabled` | Same as NPLC | Explicit ON/OFF |
+| `set_autozero/get_autozero` | DCV, DCI, 2-wire Ω; configured 2-wire temperature | ON/OFF/ONCE; 4-wire modes excluded |
+| `set_ac_bandwidth/get_ac_bandwidth` | ACV, ACI, frequency/period | Filter 3/20/200 Hz; frequency/period reuse the AC voltage filter |
+| `set_gate_time/get_gate_time` | Frequency/period | 1/10/100/1000 ms instrument gate time |
+| `set_input_impedance_auto/get_input_impedance_auto` | DCV only | HI-Z when appropriate on low voltage ranges |
+| `set_offset_compensated/get_offset_compensated` | 2-/4-wire Ω | Enabling requires fixed, verified 100 Ω / 1 kΩ / 10 kΩ range |
+| `get_settings(function)` | Any metrology-covered mode | Read-only live SENSe values in a `MetrologySettings` dataclass |
+| `read_with_settings()` | Currently explicitly configured typed mode | Includes a **pre-reading** live settings snapshot in `MeasurementResult.metrology` |
+
+**Measurement integrity:** Changing NPLC, aperture, range or other settings may
+alter actual measurement speed and uncertainty. The meter may round requested
+ranges/resolution; always query the actual value. Settings are read from the
+instrument, not inferred from requested values. The settings/reading sequence
+is serialized for one session but **not** an atomic instrument sample timestamp.
+The metrology setters do not call `CONFigure`, `MEASure`, `*RST`, `*CLS`,
+`INIT`, device clear, or any NVM deletion. Do not treat their successful
+offline tests as hardware accuracy verification.
+
+Note: numeric range bounds reject nonfinite values and values above the
+published model's instrument maxima. The discrete supported hardware
+ranges, rounded/selected actual values and optional settings must still be
+qualified against the physical firmware. `set_offset_compensated(True)`
+queries the range/autoranging status first and refuses incompatible ranges.
+Temperature autozero requires an explicitly configured 2-wire probe. Four-wire
+autozero is automatic per the instrument manual and is not overridden.
+
+See [metrology command matrix](docs/SCPI_COMMAND_COVERAGE.md) and
+[metrology HIL procedure](docs/HIL.md).
 
 ## Typed measurement modes (v0.3.0)
 

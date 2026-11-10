@@ -14,6 +14,18 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.4.0 metrology implementation update
+
+Implemented in software through `dmm.metrology`: model-scoped range/auto
+range, V/I/Ω absolute resolution, NPLC, DC/temperature aperture and enable,
+autozero (where supported), AC bandwidth, frequency/period gate time,
+DC voltage input impedance, offset-compensated ohms with fixed-range guard,
+and typed readback/measurement metadata snapshots.
+
+Not yet HIL qualified. The v0.1.2 baseline table below is historical;
+see `docs/SCPI_COMMAND_COVERAGE.md` for current v0.4.0 mappings. Advanced
+triggering, binary capture/streaming, and math/statistics remain future work.
+
 ## v0.3.0 measurement implementation update
 
 The table below is historical (v0.1.2). As of v0.3.0 the driver provides

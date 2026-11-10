@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 — 2026-11-10 (P1-03 metrology, software-only)
+
+- Add function-specific `dmm.metrology` controls for range/autorange,
+  absolute resolution, 34411A NPLC, aperture and mode, autozero,
+  AC filter bandwidth, frequency/period gate time, DC input impedance and
+  guarded 2-/4-wire ohms offset compensation.
+- Add typed `MetrologySettings` instrument query snapshot and optional
+  `MeasurementResult.metrology` to preserve actual settings before a reading.
+- Reuse scpi-driver-core exclusively; no implicit mode switch, measuring,
+  reset/clear, NVM write, or automatic retries of uncertain commands.
+- Add scripted positive/negative parameter tests, unsupported-mode guards,
+  malformed readback tests and fault injection.
+- Preserve original USB/VXI-11/TCP and measurement/NVM APIs.
+- Actual 34411A metrology functionality and accuracy remain HIL NOT RUN.
+
+
 ## 0.3.0 — 2026-11-10 (software-only P0-01/P1-02 increment)
 
 - Add typed, model-specific measurement configuration and one-shot read API

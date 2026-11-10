@@ -20,6 +20,7 @@ from dmm34411a.acquisition import (
     NONVOLATILE_MEMORY_POINTS,
 )
 from dmm34411a.measurement import MeasurementController
+from dmm34411a.metrology import MetrologyController
 from dmm34411a.models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
@@ -100,6 +101,7 @@ class DMM_34411A:
         self.idn: str | None = None
         self.acquisition = AcquisitionController(self)
         self.measurement = MeasurementController(self)
+        self.metrology = MetrologyController(self)
         if auto_open:
             self.open()
 

@@ -144,3 +144,41 @@ and thermistor/RTD tests require deenergized, appropriately wired standards.
 
 Do not qualify numeric range limits, NPLC, aperture or probe coefficient
 options until the subsequent metrology implementation/bench work.
+
+## v0.4.0 — P1-03 metrology HIL qualification (NOT RUN)
+
+**Precondition:** This is an operator-controlled, non-automated checklist.
+Do not change meter functions or instrument terminals with a live DUT. Use
+calibrated DC voltage, AC voltage, resistance, current and frequency sources
+with recorded uncertainty, source limits and fixture authorization.
+
+1. Record actual 34411A serial/firmware, reference standards, environmental
+   conditions, calibration status, VISA/LAN interface and driver/core versions.
+2. On safe DC voltage input: configure DCV explicitly and test manual
+   0.1/1/10 V ranges and autorange, query each effective `SENSe:VOLT:DC:RANGe?`
+   and `:AUTO?`; evaluate actual behavior vs reference, not requested value.
+3. Set NPLC = 0.001, 0.02, 1, 10, 100 (where supported); verify readback,
+   aperture mode disabled and effects on noise/speed/line-frequency rejection.
+4. Set aperture = 20 µs, 100 µs, 1 ms, 0.1 s, 1 s; verify `:APER:ENAB?`,
+   measured acquisition duration, noise and resolution.
+5. Verify autozero ON/OFF/ONCE and DC input impedance automatic HI-Z behavior
+   against a known source/load. Record reading differences and burden.
+6. On authorized ACV source: compare 3/20/200 Hz filter settings using 10,
+   100 and 1000 Hz signals; record measured settling time and accuracy.
+7. Frequency/period: compare 1/10/100/1000 ms gate settings against a
+   reference source; verify readback and uncertainty.
+8. Ω 2W/4W: after connecting passive standards, test autorange/manual,
+   resolution, NPLC/aperture; test offset compensation on 100 Ω, 1 kΩ,
+   10 kΩ fixed ranges only, verify out-of-range refusals.
+9. Temperature autozero: only with connected approved 2-wire RTD or thermistor;
+   confirm 4-wire mode cannot be altered.
+10. Current mode settings require **separate operator authorization**,
+    a fused current input and safe rewiring. Do not automate transitions.
+11. For each test, record SCPI transcript, requested and queried settings,
+    source value, measured value, uncertainty, status/error queue and
+    PASS/FAIL/NOT RUN. Repeat on available USB, VXI-11 and socket transports
+    if the bench supports them.
+12. Do not declare any hardware command qualified until actual results exist.
+
+Relevant Keysight User Guide pp. 52–59: NPLC, aperture, impedance, AC filter,
+frequency gate, autozero and ranging behavior. CI mock acceptance is not HIL.
