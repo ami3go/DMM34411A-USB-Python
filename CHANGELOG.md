@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2 — 2026-11-10 (P1-03 metrology hardening, offline only)
+
+- Extend the merged v0.3.1 controller with function-specific frequency/period
+  AC voltage input-ranging and shared ACV filter control.
+- Require explicit NPLC/aperture enable-mode switching under session lock,
+  including FRESistance's instrument-specific APERture:ENABle spelling.
+- Block temperature autozero on 4-wire RTD or unknown probe state;
+  allow only explicitly configured 2-wire RTD/thermistor.
+- Add typed pre-read `MetrologySnapshot` to `MeasurementResult.metrology`.
+- Extend deterministic input/range, mode conflict, FREQ/PER snapshot and
+  metadata tests while retaining all existing USB/LAN/NVM APIs.
+- No physical 34411A HIL is claimed.
+
+
 ## 0.3.1 — 2026-11-10 (P1-03 metrology configuration)
 
 - Add function-aware `MetrologyController` accessible as `dmm.metrology`.

@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.3.1** (the original 2021 code had no package version). The core
+**Version: 0.3.2** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -199,6 +199,45 @@ A `SENSe` metrology setting does not invalidate the active measurement
 **Hardware HIL status:** not run. See the detailed
 [HIL checklist](docs/HIL.md) and [SCPI matrix](docs/SCPI_COMMAND_COVERAGE.md).
 Official source references are linked there.
+
+## P1-03 metrology hardening (v0.3.2)
+
+This increment builds on merged P1-03 (v0.3.1), **not** an alternate
+metrology controller. All existing methods and transports remain supported.
+
+- Frequency and period voltage-input range is configured using
+  `SENSe:FREQuency:VOLTage:RANGe` and
+  `SENSe:PERiod:VOLTage:RANGe`. The numeric range is **volts**,
+  never a frequency in hertz or period in seconds.
+- Their AC input filters use the voltage AC bandwidth SCPI group.
+- `set_nplc` explicitly disables aperture-enabled mode, while
+  `set_aperture` explicitly enables aperture mode. This is an ordered pair
+  of SCPI writes; a communication failure must not trigger blind retries.
+- Temperature autozero is only selectable after explicit **2-wire** RTD
+  or thermistor configuration. The driver blocks autozero changes for 4-wire
+  RTD because the instrument leaves that function autozero-enabled.
+- `metrology.snapshot(MeasurementFunction.FREQUENCY)` reports voltage-input
+  range, autorange, gate time and input filter where applicable.
+- `metrology.read_with_settings()` performs a live pre-reading settings
+  snapshot followed by one typed `READ?`; the returned
+  `MeasurementResult.metrology` is a `MetrologySnapshot`. This is a
+  serial software operation, **not** hardware-atomic acquisition metadata.
+
+```python
+from dmm34411a import DMM_34411A, MeasurementFunction as F
+
+# Run only with an operator-authorized and safely connected frequency source.
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    dmm.configure_frequency()
+    dmm.metrology.set_range(F.FREQUENCY, 10.0)  # 10 V AC input range
+    dmm.metrology.set_ac_bandwidth(F.FREQUENCY, 20)
+    print(dmm.metrology.snapshot(F.FREQUENCY))
+    result = dmm.metrology.read_with_settings()
+    print(result.value, result.metrology)
+```
+
+Software CI tests command paths and safety guards only. The real 34411A
+firmware and input-range behavior still require operator-authorized HIL.
 
 ## Typed measurement modes (v0.3.0)
 
