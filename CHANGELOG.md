@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1 — 2026-11-10 (P1-03 metrology configuration)
+
+- Add function-aware `MetrologyController` accessible as `dmm.metrology`.
+- Implement bounded numeric/symbolic manual range, autorange, resolution,
+  34411A NPLC and aperture/enable controls, autozero, AC filter bandwidth,
+  frequency/period gate time, DC input impedance, resistance offset
+  compensation and temperature units.
+- Add immutable `MetrologySnapshot` live readback; none of these
+  operations silently switches measurement functions, triggers a reading,
+  clears instrument status or erases NVM.
+- Reject invalid and unsupported mode/value combinations before SCPI writes;
+  enforce safe fixed resistance range before enabling offset compensation.
+- Add table-driven offline tests, command reference and HIL checklist.
+- Preserve v0.3.0 measurement APIs and all USB/VXI-11/TCP/NVM behavior.
+- Physical HIL qualification remains **NOT RUN**.
+
+
 ## 0.3.0 — 2026-11-10 (software-only P0-01/P1-02 increment)
 
 - Add typed, model-specific measurement configuration and one-shot read API

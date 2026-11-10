@@ -2,6 +2,7 @@
 
 from .acquisition import NONVOLATILE_MEMORY_POINTS, VOLATILE_MEMORY_POINTS
 from .models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
+from .metrology import MetrologyController, MetrologySnapshot
 from .driver import (
     DEFAULT_TIMEOUT_S,
     DEFAULT_LAN_SOCKET_PORT,
@@ -11,7 +12,7 @@ from .driver import (
     DMM_34411A,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = [
     "DMM_34411A",
     "DEFAULT_TIMEOUT_S",
@@ -25,5 +26,7 @@ __all__ = [
     "MeasurementFunction",
     "MeasurementResult",
     "TemperatureProbe",
+    "MetrologyController",
+    "MetrologySnapshot",
     "__version__",
 ]

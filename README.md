@@ -3,7 +3,7 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.3.0** (the original 2021 code had no package version). The core
+**Version: 0.3.1** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
 
 ## Installation
@@ -141,6 +141,64 @@ qualification gate; see [the HIL checklist](docs/HIL.md).
 
 The bundled `Docs/34410A_Quick_Reference.pdf` is retained for historical
 reference; it is not a substitute for 34411A HIL verification.
+
+## P1-03 — Metrology configuration (v0.3.1)
+
+`DMM_34411A.metrology` exposes function-aware `SENSe` control on the
+**existing selected instrument**. It does not change the measurement
+function, initiate acquisition, reset, clear errors or modify NVM.
+
+```python
+from dmm34411a import DMM_34411A, MeasurementFunction as F
+
+# Configure the meter using an operator-authorized benign voltage fixture.
+with DMM_34411A.from_ethernet("192.168.0.55", protocol="socket") as dmm:
+    dmm.configure_dc_voltage()
+    dmm.metrology.set_range(F.DC_VOLTAGE, 10.0)  # volts; rounds to supported range
+    dmm.metrology.set_autorange(F.DC_VOLTAGE, False)
+    dmm.metrology.set_nplc(F.DC_VOLTAGE, 10)
+    dmm.metrology.set_autozero(F.DC_VOLTAGE, True)
+    actual = dmm.metrology.snapshot(F.DC_VOLTAGE)
+    print(actual.range_value, actual.nplc, actual.autozero)
+    result = dmm.measurement.read()  # READ?; typed result in volts
+    print(result.value, result.unit)
+```
+
+Supported methods (all instrument readbacks come from live SCPI queries):
+
+| Method | Modes | Valid inputs and semantics |
+| --- | --- | --- |
+| `set_range`, `get_range` | DC/AC V, DC/AC I, 2-/4-wire Ω, capacitance | SI numeric within model range or `MIN/MAX/AUTO`; instrument may select next available range |
+| `set_autorange`, `get_autorange` | same | strict `bool` |
+| `set_resolution`, `get_resolution` | DC/AC V, DC/AC I, 2-/4-wire Ω | positive SI numeric, `MIN/MAX/DEF`; readback reports actual resolution |
+| `set_nplc`, `get_nplc` | DCV/DCI/Ω/temperature | `0.001/0.002` (34411A only), `0.006/0.02/0.06/0.2/1/2/10/100`, or `MIN/MAX/DEF` |
+| `set_aperture`, `get_aperture` | DCV/DCI/Ω/temperature | 20 µs–1 s (20–100 µs requires verified 34411A ID), or `MIN/MAX/DEF` |
+| `set_aperture_enabled`, `get_aperture_enabled` | DCV/DCI/Ω/temperature | strict `bool`, explicitly selects aperture mode; setting an NPLC or aperture value alone does not silently toggle it |
+| `set_autozero`, `get_autozero` | DCV/DCI/2-wire Ω/temperature | `True/False/"ONCE"`; 4-wire Ω has fixed automatic autozero |
+| `set_ac_bandwidth`, `get_ac_bandwidth` | ACV/ACI | 3, 20, 200 Hz or `MIN/MAX/DEF` |
+| `set_gate_time`, `get_gate_time` | frequency/period | 0.001, 0.01, 0.1, 1 s or `MIN/MAX/DEF` |
+| `set_input_impedance_auto`, `get_input_impedance_auto` | DCV only | HI-Z on lower DCV ranges; `bool` |
+| `set_offset_compensation`, `get_offset_compensation` | 2-/4-wire Ω | ON only with fixed 100 Ω/1 kΩ/10 kΩ range verified by instrument queries |
+| `set_temperature_unit`, `get_temperature_unit` | temperature | `C/F/K` |
+| `snapshot(function)` | supported modes | immutable `MetrologySnapshot` of effective live settings; fields not valid for mode are `None` |
+
+**Safety and metrology:** no front-panel/DUT terminal switching. Ohms,
+capacitance and current modes require approved wiring and an appropriate
+reference source. NPLC, aperture, resolution, filter selection, input
+impedance and offset compensation affect settling time and measurement
+uncertainty. `snapshot(function)` does not change the active function and
+does not assert physical calibration. Its multiple SCPI queries are
+serialized within the driver's session, but cannot exclude changes from
+another instrument controller.
+
+**Compatibility:** legacy API and `measurement.read()` remain available.
+A `SENSe` metrology setting does not invalidate the active measurement
+*function*; it adjusts that function's effective settings. If you use raw
+`dmm.client` calls to change active mode, reconfigure before reading.
+
+**Hardware HIL status:** not run. See the detailed
+[HIL checklist](docs/HIL.md) and [SCPI matrix](docs/SCPI_COMMAND_COVERAGE.md).
+Official source references are linked there.
 
 ## Typed measurement modes (v0.3.0)
 
