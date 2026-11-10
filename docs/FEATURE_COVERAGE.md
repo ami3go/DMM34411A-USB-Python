@@ -7,6 +7,13 @@
 **Open feature PR:** [#1 — Internal memory logging](https://github.com/ami3go/DMM34411A-USB-Python/pull/1), unmerged and based on the legacy direct-PyVISA driver.  
 **Related task:** [DMM34411A-NVM-BUFFER-001](../task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md).
 
+> **Current planning note (2026-11-10):** PR #1 has been merged into
+> `main` as v0.2.0. The original table below is a historical v0.1.2 audit,
+> not a claim that PR #1 is still open. The remaining missing functions and
+> updated execution order are specified in
+> [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
+> Documentation-only v0.2.1 does not introduce new instrument features.
+
 ## v0.2.0 memory implementation update
 
 This matrix was audited against **v0.1.2 main** and remains the historical
