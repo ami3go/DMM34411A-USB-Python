@@ -131,7 +131,8 @@ def test_non_destructive_export_contains_hash_and_provenance(tmp_path):
     m = json.loads(receipt.metadata_file.read_text())
     assert m["model"] == "34411A"
     assert m["serial"] == "TEST"
-    assert m["driver_version"] == "0.8.0"
+    from dmm34411a import __version__
+    assert m["driver_version"] == __version__
     assert m["sample_function"] == "dc_voltage"
     assert m["unit"] == "V"
     assert m["timestamp_source"] == "host-export-start only"
