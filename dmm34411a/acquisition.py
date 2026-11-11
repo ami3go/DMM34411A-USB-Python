@@ -119,6 +119,7 @@ class AcquisitionController:
         self._sample_interval_s: float | None = None
         self._source = "IMMediate"
         self._completed = False
+        self._copy_attempted = False
         self._state = AcquisitionState.IDLE
         self._triggers = 1
         self._samples_per_trigger: int | None = None
@@ -127,6 +128,16 @@ class AcquisitionController:
     @property
     def client(self):
         return self._meter.client
+
+    def invalidate_external_io(self) -> None:
+        """Raw SCPI may have changed acquisition state outside typed control.
+
+        Clearing completion also prevents an old successful wait from
+        authorizing a later NVM copy after arbitrary operator commands.
+        """
+        if self._target is not None:
+            self._completed = False
+            self._state = AcquisitionState.UNKNOWN
 
     @property
     def state(self) -> AcquisitionState:
@@ -138,6 +149,7 @@ class AcquisitionController:
         self._log_target = None
         self._sample_interval_s = None
         self._completed = False
+        self._copy_attempted = False
         self._state = AcquisitionState.IDLE
         self._triggers = 1
         self._samples_per_trigger = None
@@ -327,13 +339,20 @@ class AcquisitionController:
     def send_bus_trigger(self) -> None:
         if self._target is None or self._source != "BUS":
             raise ConfigurationError("bus trigger requires an acquisition configured with BUS")
-        self.client.write("*TRG")
+        if self._state is not AcquisitionState.ARMED:
+            raise RuntimeError("BUS trigger requires INITiate and an armed acquisition")
+        try:
+            self.client.write("*TRG")
+        except Exception:
+            self._completed = False
+            self._state = AcquisitionState.UNKNOWN
+            raise
 
     def abort(self) -> None:
-        # ABORt may have taken effect despite timeout; never automatically retry.
+        # Even if ABORt times out, no previous COMPLETE may authorize NVM copy.
         self._state = AcquisitionState.UNKNOWN
-        self.client.write("ABORt")
         self._completed = False
+        self.client.write("ABORt")
         self._state = AcquisitionState.ABORTED
 
     def abort_and_snapshot(self) -> AcquisitionProgress:
@@ -374,6 +393,8 @@ class AcquisitionController:
     def wait_complete(self, timeout_s: float | None = None, poll_interval_s: float = 0.1) -> int:
         if self._target is None:
             raise RuntimeError("no acquisition configured")
+        if self._state is not AcquisitionState.ARMED:
+            raise RuntimeError("wait_complete requires INITiate and an armed acquisition")
         poll = _seconds(poll_interval_s, "poll_interval_s")
         assert poll is not None
         if timeout_s is None:
@@ -385,6 +406,10 @@ class AcquisitionController:
         assert budget is not None
         deadline = time.monotonic() + budget
         while True:
+            if self._state is AcquisitionState.ABORTED:
+                raise InterruptedError("acquisition explicitly aborted during wait")
+            if self._state is not AcquisitionState.ARMED:
+                raise RuntimeError(f"acquisition state changed during wait: {self._state.value}")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 self._state = AcquisitionState.UNKNOWN
@@ -467,8 +492,13 @@ class AcquisitionController:
         assert budget is not None
         if self._log_target is None or self._target is None:
             raise RuntimeError("configure a data log before saving to NVM")
-        if not self._completed:
+        if not self._completed or self._state is not AcquisitionState.COMPLETE:
             raise RuntimeError("acquisition must pass wait_complete before NVM copy")
+        if self._copy_attempted:
+            raise RuntimeError(
+                "NVM copy already attempted; outcome may be unknown. "
+                "Do not retry without independently reconciling NVM contents"
+            )
         with self._meter.session.operation_lock():
             available = self.volatile_count()
             if available != self._log_target:
@@ -482,6 +512,9 @@ class AcquisitionController:
                 raise FileExistsError("NVM contains readings; export and explicitly delete first")
             if self.client.query("*OPC?", timeout_s=budget).strip() != "1":
                 raise RuntimeError("instrument did not complete acquisition")
+            # Latch BEFORE the non-idempotent write. A timeout may follow a
+            # completed instrument copy even when its reply is unavailable.
+            self._copy_attempted = True
             self.client.write("DATA:COPY NVMEM, RDG_STORE", timeout_s=budget)
             if self.client.query("*OPC?", timeout_s=budget).strip() != "1":
                 raise RuntimeError("instrument did not complete NVM copy")

@@ -14,6 +14,13 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.8.1 P0 safety hardening
+
+Offline-tested: premature BUS trigger/wait rejection, external SCPI
+acquisition cache invalidation, exactly-once attempt latch for NVM COPY,
+and preservation of confirmed data from failed destructive exports.
+Hardware HIL NOT RUN.
+
 ## v0.8.0 P1-05 binary transfer/export update
 
 The pinned core's IEEE definite-length binary reader supports bounded

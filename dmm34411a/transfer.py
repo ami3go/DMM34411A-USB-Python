@@ -16,6 +16,7 @@ import json
 import math
 import os
 import re
+import secrets
 import shutil
 import struct
 import tempfile
@@ -229,16 +230,22 @@ class ReadingTransferController:
             return BinaryCapture(0, precision_bits, b"")
         if count > VOLATILE_MEMORY_POINTS:
             raise ValueError("instrument reports more than 1 million volatile samples")
-        with self._binary_format(precision_bits):
-            with self._meter.session.operation_lock():
-                self._ready()
-                self._verify_format(f"REAL,{precision_bits}")
-                payload = self._query_binary("FETCh?", count, precision_bits, budget)
-                count_after = self._meter.acquisition.volatile_count()
-                if count_after != count:
-                    raise RuntimeError(
-                        "volatile buffer changed during non-destructive FETCh?; content uncertain"
-                    )
+        try:
+            with self._binary_format(precision_bits):
+                with self._meter.session.operation_lock():
+                    self._ready()
+                    self._verify_format(f"REAL,{precision_bits}")
+                    payload = self._query_binary("FETCh?", count, precision_bits, budget)
+                    count_after = self._meter.acquisition.volatile_count()
+                    if count_after != count:
+                        raise RuntimeError(
+                            "volatile buffer changed during non-destructive FETCh?; content uncertain"
+                        )
+        except BaseException:
+            # Even non-destructive transfers may have left format or buffer
+            # state uncertain following a malformed/partial response.
+            self._meter.acquisition._state = AcquisitionState.UNKNOWN
+            raise
         return BinaryCapture(count, precision_bits, payload)
 
     def iter_destructive_chunks(
@@ -313,10 +320,11 @@ class ReadingTransferController:
     ) -> ExportReceipt:
         """Atomically publish a directory with readings.csv + metadata.json.
 
-        Single sibling directory rename is atomic on the same filesystem when
-        the destination does not exist. On failure the staging bundle is
-        removed; a destructive transfer may still have consumed readings,
-        so the error is never hidden/retried.
+        A successful bundle is published with a sibling directory rename.
+        If a destructive export fails after writing confirmed readings, the
+        partial CSV is PRESERVED with incomplete metadata in a uniquely
+        named .partial directory; the original failure still propagates.
+        Never silently retry an uncertain destructive transfer.
         """
         _precision(precision_bits)
         _timeout(timeout_s)
@@ -440,6 +448,47 @@ class ReadingTransferController:
                 metadata_file=dest / "metadata.json",
                 readings_file=dest / "readings.csv",
             )
+        except BaseException as error:
+            if destructive and count:
+                # Dequeued readings are irrecoverable from instrument memory.
+                # Preserve even incomplete CSV rows instead of deleting them
+                # during cleanup. Do not present them as a successful capture.
+                partial = dest.with_name(
+                    f"{dest.name}.partial.{secrets.token_hex(8)}"
+                )
+                try:
+                    if csvfile.is_file():
+                        digest = hashlib.sha256(csvfile.read_bytes()).hexdigest()
+                    else:
+                        digest = None
+                    metafile.write_text(
+                        json.dumps({
+                            "format_version": 1,
+                            "status": "INCOMPLETE",
+                            "destructive": True,
+                            "confirmed_csv_rows": count,
+                            "current_chunk_outcome": "UNKNOWN",
+                            "reason": type(error).__name__,
+                            "instrument_idn": idn,
+                            "readings_csv_sha256": digest,
+                            "timestamp_source": "host-export-start only",
+                            "hardware_qualified": False,
+                        }, indent=2, sort_keys=True) + "\n",
+                        encoding="utf-8",
+                    )
+                    os.rename(stage, partial)
+                    published = True  # Protect partial artifact from cleanup.
+                except BaseException:
+                    # Preserve the staging directory for manual recovery if
+                    # even the partial publication fails (e.g. disk full).
+                    partial = stage
+                    published = True
+                try:
+                    error.partial_directory = partial
+                    error.confirmed_csv_rows = count
+                except (AttributeError, TypeError):
+                    pass
+            raise
         finally:
             if not published:
                 shutil.rmtree(stage, ignore_errors=True)

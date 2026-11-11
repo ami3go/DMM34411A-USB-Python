@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.1 — 2026-11-11 (P0 acquisition and export integrity)
+
+- Require successful INITiate/ARMED state before BUS trigger or
+  wait_complete; stale volatile counts cannot authorize completion.
+- Raw legacy SCPI writes and non-IDN queries conservatively invalidate
+  typed acquisition completion, blocking NVM copy after external changes.
+- Clear completion before attempting ABORt and refuse replay of NVM
+  DATA:COPY after any attempted copy, including ambiguous timeouts.
+- Mark binary FETCh failure or inconsistent readback UNKNOWN.
+- Preserve confirmed CSV rows from interrupted **destructive** exports in
+  a uniquely named INCOMPLETE partial bundle with SHA256 and explicit
+  uncertain-chunk metadata; never discard already removed evidence.
+- Add eight safety regression tests, including lost COPY reply, stale
+  buffers, premature BUS trigger and partial export recovery.
+- Hardware qualification remains NOT RUN.
+
+
 ## 0.8.0 — 2026-11-11 (P1-05 binary transfer/export, offline-only)
 
 - Add bounded IEEE REAL32/REAL64 capture using the pinned core
