@@ -3,8 +3,46 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.5.0** (the original 2021 code had no package version). The core
+**Version: 0.6.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## P1-06 — SCPI status and diagnostics (v0.6.0)
+
+The `dmm.status` controller uses the existing `scpi-driver-core` session.
+Instrument error queues and IEEE event registers have **read-to-clear**
+semantics; diagnostic snapshots do **not** consume them.
+
+```python
+from dmm34411a import DMM_34411A
+
+with DMM_34411A(resource_name="USB0::...::INSTR") as dmm:
+    snapshot = dmm.diagnostics_snapshot()  # no error queue drain
+    print(snapshot.model, snapshot.firmware, snapshot.status_byte)
+    print(snapshot.operation.condition, snapshot.questionable.condition)
+    # Explicit consumptive operations (only when operator approves):
+    errors = dmm.drain_errors(max_errors=16)
+    print(errors.errors, errors.exhausted)
+```
+
+| Function | API | Side effect |
+| --- | --- | --- |
+| One SCPI error | `get_error()` | Dequeues exactly one queue entry |
+| Bounded SCPI errors | `drain_errors(max_errors=32)` | Dequeues up to limit; `exhausted=True` means more may remain |
+| IEEE status byte | `status.status_byte()` | Query only |
+| IEEE event enable | `standard_event_enable()/set_standard_event_enable(mask)` | Explicit enable configuration |
+| IEEE service request | `service_request_enable()/set_service_request_enable(mask)` | Explicit SRQ mask; reserved bit 6 rejected |
+| IEEE event register | `status.standard_event_register()` | **Consumes** events |
+| Operation/Questionable condition | `status.condition(bank)` | Non-consuming |
+| Operation/Questionable event | `status.event(bank)` | **Consumes** events |
+| Operation/Questionable enable | `status.enable(bank)/set_enable(bank,mask)` | Explicit configuration |
+| Diagnostic snapshot | `diagnostics_snapshot(include_memory=False,include_system=True)` | IDN metadata, STB/ESE/SRE, operation/questionable condition+enable, version/terminals; optional volatile/NVM counts |
+| Completion barrier | `status.operation_complete(timeout_s=30)` | Explicit bounded `*OPC?`, never startup |
+| Self-test | `status.self_test(confirm=True,timeout_s=120)` | **Potentially disruptive**, invalidates local measurement/acquisition state |
+
+Important: status snapshots are ordered host queries, **not** hardware-atomic
+state records. `ROUTe:TERMinals?` reports terminal selector position but
+cannot move the selector. All error/event consumption and self-test must be
+operator controlled when historical evidence must be preserved.
 
 ## Installation
 

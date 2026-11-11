@@ -116,3 +116,24 @@ guarantee preservation when another controller changes the instrument.
 **Distinction:** MEMory:STATe controls saved instrument configurations;
 NVMEM/RDG_STORE hold logged measurements. State 0 is power-down reserved.
 No implicit state overwrite, recall, restore change or display mutation.
+
+## v0.6.0 P1-06 IEEE status and diagnostics
+
+| Capability | Instrument command | API | Side effect | Offline / HIL |
+| --- | --- | --- | --- | --- |
+| Error queue | `SYSTem:ERRor?` | `status.get_error()`, `status.drain_errors(max_errors)` | Dequeues one error/query; max 256 bounded | Unit tests / NOT RUN |
+| Status byte | `*STB?` | `status.status_byte()` | Non-consuming query | Unit tests / NOT RUN |
+| Standard event register | `*ESR?` | `status.standard_event_register()` | **Read clears events** | Unit tests / NOT RUN |
+| Standard event enable | `*ESE? / *ESE n` | `standard_event_enable/set_standard_event_enable` | Sets mask when explicit | Unit tests / NOT RUN |
+| Service request enable | `*SRE? / *SRE n` | `service_request_enable/set_service_request_enable` | Sets mask when explicit | Unit tests / NOT RUN |
+| Operation status | `STATus:OPERation:CONDition?/ENABle?/EVENt?` | `condition/enable/event("operation")` | Event read clears events | Unit tests / NOT RUN |
+| Questionable status | `STATus:QUEStionable:CONDition?/ENABle?/EVENt?` | `condition/enable/event("questionable")` | Event read clears events | Unit tests / NOT RUN |
+| Status enable | `STATus:OPERation:ENABle n`, `STATus:QUEStionable:ENABle n` | `set_enable(bank,n)` | Sets mask | Unit tests / NOT RUN |
+| Instrument version | `SYSTem:VERSion?` | `snapshot(include_system=True)` | Query only | Unit tests / NOT RUN |
+| Terminal selector | `ROUTe:TERMinals?` | `snapshot(include_system=True)` | Query only, cannot move switch | Unit tests / NOT RUN |
+| Operation completion | `*OPC?` | `status.operation_complete(timeout_s)` | Blocks, bounded | Unit tests / NOT RUN |
+| Explicit self test | `*TST?` | `status.self_test(confirm=True)` | **Potentially disruptive** | Unit tests / NOT RUN |
+
+Keysight reference: [34410A/34411A SCPI comparison 5990-3515](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf),
+pp. 3 and 13–14. The documentation confirms command families but is
+not evidence that a particular instrument's firmware accepted the commands.

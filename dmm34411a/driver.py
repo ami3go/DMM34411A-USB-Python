@@ -24,6 +24,7 @@ from dmm34411a.metrology import MetrologyController
 from dmm34411a.calculation import MathController
 from dmm34411a.storage import InstrumentStateController
 from dmm34411a.display import DisplayController
+from dmm34411a.status import StatusController, ScpiError, ErrorDrain, DiagnosticSnapshot
 from dmm34411a.models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
@@ -108,6 +109,7 @@ class DMM_34411A:
         self.math = MathController(self)
         self.storage = InstrumentStateController(self)
         self.display = DisplayController(self)
+        self.status = StatusController(self)
         if auto_open:
             self.open()
 
@@ -380,6 +382,24 @@ class DMM_34411A:
 
     def send_bus_trigger(self) -> None:
         self.acquisition.send_bus_trigger()
+
+    # -- v0.6.0 SCPI diagnostics (read-to-clear actions are explicit) -----
+
+    def get_error(self) -> ScpiError:
+        """Consume and return one instrument SCPI error, preserving raw text."""
+        return self.status.get_error()
+
+    def drain_errors(self, max_errors: int = 32) -> ErrorDrain:
+        """Explicitly consume at most max_errors errors, never silently *CLS."""
+        return self.status.drain_errors(max_errors=max_errors)
+
+    def diagnostics_snapshot(
+        self, *, include_memory: bool = False, include_system: bool = True
+    ) -> DiagnosticSnapshot:
+        """Read non-destructive condition/status registers; no event/error reads."""
+        return self.status.snapshot(
+            include_memory=include_memory, include_system=include_system
+        )
 
     def device_clear(self) -> None:
         """Explicit VISA device clear; may abort an ongoing measurement."""
