@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.2 — 2026-11-11 (Offline CI and 1M buffer stress qualification)
+
+- Add independent REAL32/REAL64 simulator stress matrix for buffers of
+  1, 50k, 100k and 1 million readings (8 MB maximum IEEE payload),
+  plus 50k sample host export with SHA256 integrity verification.
+- Upgrade CI with critical Ruff lint/syntax checks, minimum 70% package
+  line coverage, Python 3.10–3.13 wheel installation/import smoke,
+  and a dedicated Python 3.12 large-buffer stress job.
+- Keep actual 34411A HIL tests excluded from default and stress CI;
+  do not claim physical throughput from simulated byte transports.
+- No runtime instrument changes in this increment.
+
+
 ## 0.8.1 — 2026-11-11 (P0 acquisition and export integrity)
 
 - Require successful INITiate/ARMED state before BUS trigger or

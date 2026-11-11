@@ -3,8 +3,26 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.1** (the original 2021 code had no package version). The core
+**Version: 0.8.2** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.2 Offline qualification and stress CI
+
+The normal Python 3.10–3.13 matrix runs all hardware-free tests except
+the dedicated stress category, emits coverage and enforces a baseline,
+checks critical Ruff lint/syntax rules, and installs the built wheel
+for import/version verification. A separate Python 3.12 job tests bounded
+REAL32/64 blocks with 1, 50,000, 100,000 and **1,000,000** readings plus
+CSV+SHA256 export of 50,000 readings.
+
+```bash
+pytest -m "not hardware and not stress" --cov=dmm34411a --cov-fail-under=70
+pytest -m "stress and not hardware" -o timeout=180
+ruff check --select E4,E7,E9,F821,F822,F823 dmm34411a tests
+```
+
+All stress results remain **simulated protocol verification**, not
+physical throughput or timing evidence.
 
 ## v0.8.1 P0 safety and export recovery
 
