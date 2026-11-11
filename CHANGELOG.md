@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 — 2026-11-11 (P1-05 binary transfer/export, offline-only)
+
+- Add bounded IEEE REAL32/REAL64 capture using the pinned core
+  `query_binary_block`, deterministic NORM big-endian decoding,
+  exact byte-count and volatile-point reconciliation (max 1M readings).
+- Separate non-destructive FETCh from explicit chunked DATA:REMove?
+  with strictly limited chunk size and confirmed remaining-count checks.
+- Preserve existing format/byte-order settings where the session remains
+  healthy; never retry uncertain destructive reads or silently issue R?.
+- Add host export as one atomic new directory with readings.csv +
+  metadata.json, SHA-256, raw instrument identity, transport, function,
+  sample count and nominal (not fabricated) timing provenance.
+- Map REAL32/REAL64 overload sentinel to explicit CSV overrange status;
+  reject truncated/NaN/Inf binary payloads, cleanup failed staging data.
+- Add simulator tests for corruption, cancellation, chunk boundaries,
+  count mismatch, format restoration, checksum and no NVM deletion.
+- No physical instrument binary framing, throughput or retention HIL run.
+
+
 ## 0.7.0 — 2026-11-11 (P1-04 advanced acquisition control, offline-only)
 
 - Extend existing AcquisitionController with 34411A-only internal trigger

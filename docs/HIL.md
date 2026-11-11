@@ -305,3 +305,35 @@ with any existing configuration states and NVM readings backed up.
 9. Attach raw SCPI transcript, traceable latency and pretrigger ordering
    data, uncertainty budget, operator PASS/FAIL/NOT RUN and bench signoff.
 
+
+## v0.8.0 P1-05 full binary capture and export HIL checklist (NOT RUN)
+
+**Do not run destructive testing with user data or pre-existing NVM.**
+Use an explicitly authorized fixture and disposable buffer contents.
+
+1. Record real 34411A serial/firmware, USB/VXI-11/TCP backend, driver/core
+   immutable SHAs, calibrated DC voltage source and reference uncertainty.
+2. Acquire 3, 20,000, 50,000 then 1,000,000 readings into volatile memory,
+   if instrument memory/throughput permit. Count with
+   `DATA:POINts? RDG_STORE` before and after nondestructive FETCh.
+3. Verify REAL,32 and REAL,64 IEEE definite block framing and terminator
+   behavior on USBTMC, VXI-11 and raw TCP. Record `FORMat:DATA?` and
+   `FORMat:BORDer?` initial/selected/restored values.
+4. Compare sample-by-sample with a known reference; quantify conversion
+   precision, overload and ±9.9E37 sentinel detection, and byte-order
+   matching for NORM vs SWAP settings.
+5. Run `export_volatile_bundle` non-destructively; verify CSV SHA256,
+   JSON count/identity, byte size, external trace consistency, and nominal
+   timing fields (no per-sample timestamps invented).
+6. Only with disposable readings, run destructive `DATA:REMove? 1000`
+   chunks. Confirm decrement and exact FIFO ordering. Test cancel after
+   a confirmed chunk; reconcile remaining count before retry.
+7. Fault-inject truncation/timeout/disconnect first in an isolated simulator.
+   During hardware testing, never auto-retry destructive commands.
+8. Test 0,1,20k,50k,50,001,1M boundaries; restrict host memory (<=8MB
+   binary block plus bounded chunks) and observe timer/readback speed.
+9. Verify NVM content unchanged throughout. `R?` remains unimplemented;
+   NVM erase/overwrite stays separately confirmed and blocked by default.
+10. Attach command traces, CRC/SHA checks, file artifacts, uncertainty,
+    complete/incomplete transfer outcome, PASS/FAIL/NOT RUN and operator signoff.
+

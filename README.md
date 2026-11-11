@@ -3,8 +3,67 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.7.0** (the original 2021 code had no package version). The core
+**Version: 0.8.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## P1-05 — High-speed binary capture and host export (v0.8.0)
+
+The new `dmm.transfer` extends the existing instrument acquisition
+engine and uses the **pinned scpi-driver-core IEEE-488.2 definite-length
+binary block parser**. No new transport or parallel acquisition engine.
+
+```python
+from dmm34411a import DMM_34411A
+
+# Operator-approved low-voltage fixture; start/complete capture separately.
+with DMM_34411A(resource_name="USB0::...::INSTR") as dmm:
+    dmm.configure_dc_voltage()
+    dmm.configure_volatile_acquisition(50000, trigger_source="IMMEDIATE")
+    dmm.start_acquisition()
+    dmm.acquisition.wait_complete(timeout_s=120)
+    # Bounded full binary fetch (max 8 MB payload for 1M × REAL64):
+    raw = dmm.fetch_volatile_binary(precision_bits=32)
+    print(raw.samples, list(raw.readings())[:5])  # demo only; avoid 1M list
+    receipt = dmm.export_volatile_bundle(
+        "capture_001", destructive=False, precision_bits=32
+    )
+    print(receipt.readings_file, receipt.metadata_file, receipt.sha256)
+```
+
+| Capability | API | Memory / safety |
+| --- | --- | --- |
+| Full non-destructive binary fetch | `fetch_volatile_binary(precision_bits=32|64)` | Uses `FETCh?`, exact length, <=8MB payload max |
+| Lazy IEEE-754 decode | `BinaryCapture.readings()` | Iterator; REAL32 and REAL64 with verified big-endian `NORM` |
+| Explicit destructive chunked drain | `transfer.iter_destructive_chunks(max_points=n,chunk_size=10000)` | `DATA:REMove? n`, max 100k values per chunk, no retry |
+| Atomic host export | `export_volatile_bundle("new_folder",destructive=False)` | New directory with CSV+JSON published with a single rename |
+| Explicit destructive export | `export_volatile_bundle(...,destructive=True,max_points=n)` | Consumes requested readings; never implicit |
+| Integrity/provenance | `ExportReceipt`, JSON metadata | SHA-256 of CSV, count, overrange, IDN, firmware, transport, core+driver version, function and nominal interval |
+
+**Safety contracts**
+
+- No source `R?` command is sent: its NVM/volatile retention implications
+  require operator HIL verification. No NVM buffer overwrite/clear is added.
+- Non-destructive `FETCh?` is one bounded binary block, not a giant Python
+  `list[float]`. Destructive drains are distinct and explicit, with
+  verified `DATA:POINts? RDG_STORE` decrement after each chunk.
+- Binary framing uses the pinned core `query_binary_block()`. The module
+  selects `FORMat:DATA REAL,32/64` and `FORMat:BORDer NORMal` (big-endian),
+  verifies readback, and **restores previous settings** on connected exit.
+  If the stream is faulted/disconnected restoration cannot be assured.
+- No silent retry after uncertain destructive `DATA:REMove?`; the driver
+  marks acquisition UNKNOWN and raises `TransferUncertainError` containing
+  the number of *confirmed* removed readings. The unknown current chunk may
+  have been consumed; reconcile physically before another drain.
+- CSV fields are `index,reading,overrange`; real 9.9E37 overload sentinel
+  becomes an empty reading with overrange=1. NaN/Inf payloads are rejected.
+  Each bundle contains JSON metadata with SHA-256 and source identity.
+- **No invented per-sample timestamps**. The JSON distinguishes nominal
+  sample interval from actually captured per-sample timebase.
+- Only a *new* export directory is accepted, and staging is published by
+  one rename. Existing exports are never intentionally overwritten.
+- The Python API implements the protocol and passes simulation tests; the
+  physical instrument's binary block terminator, byte order, firmware
+  limits, FETCh retention and high-speed throughput remain **HIL NOT RUN**.
 
 ## P1-04 — Advanced 34411A triggering (v0.7.0)
 

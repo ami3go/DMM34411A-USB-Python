@@ -153,3 +153,19 @@ not evidence that a particular instrument's firmware accepted the commands.
 | Completion | `DATA:POINts? RDG_STORE`, `*OPC?` | `wait_complete(timeout_s)` | deadline-bound, marks complete only on ack |
 
 Official sources: Keysight [34410A/11A User Guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf), triggering pages 68–74; [SCPI Command Comparison](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf), SAMPLE/TRIGGER sections.
+
+## v0.8.0 P1-05 binary transfer / integrity coverage
+
+| Feature | SCPI | API | Semantics | Verification |
+| --- | --- | --- | --- | --- |
+| Binary REAL32/REAL64 | `FORMat:DATA REAL,32/REAL,64` | `fetch_volatile_binary(precision_bits=32/64)` | Persistent setting restored if connected | Offline tested; HIL NOT RUN |
+| Big-endian order | `FORMat:BORDer NORMal`, `FORMat:BORDer?` | Core IEEE block + IEEE754 decoder | Restore previous border on healthy exit | Offline tested; HIL NOT RUN |
+| Non-destructive full fetch | `FETCh?` | `fetch_volatile_binary()` | One bounded full block up to 8MB, exact sample count | Offline tested; HIL NOT RUN |
+| Destructive chunked drain | `DATA:REMove? n` | `transfer.iter_destructive_chunks(max_points=n)` | Explicit; count decrements verified; no uncertain replay | Offline tested; HIL NOT RUN |
+| Reading count | `DATA:POINts? RDG_STORE` | Transfer and reconciliation | Must agree with requested transfer | Offline tested; HIL NOT RUN |
+| Host export | File-system CSV + JSON + SHA256 | `export_volatile_bundle()` | Atomic sibling directory rename; no old files overwritten | Offline tested |
+| Destructive R? read | `R?` | **Deliberately not provided** | Requires firmware retention HIL evidence | NOT RUN |
+
+Core source: [scpi-driver-core pinned IEEE definite-length block reader](https://github.com/ami3go/scpi-driver-core/blob/1e03b6837f96f200dc28233490639f2f080e1791/src/scpi_driver_core/scpi/binary_block.py).
+34411A command support: [Keysight command comparison](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf), FORMAT/DATA sections, and
+[Keysight User Guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf), Accessing Reading Memory.
