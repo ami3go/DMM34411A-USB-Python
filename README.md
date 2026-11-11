@@ -3,8 +3,44 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.2** (the original 2021 code had no package version). The core
+**Version: 0.8.3** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.3 Opt-in HIL evidence runner (safe dry run by default)
+
+The built-in HIL runner **does not connect to any instrument** without
+an explicit double authorization, a resource address, operator/fixture
+identification and an unused evidence destination.
+
+```bash
+# Safe planning only: prints 11 cases, each NOT_RUN. No hardware I/O.
+python -m dmm34411a.hil
+
+# Only after physical bench authorization, on your own PC:
+export DMM34411A_HIL_APPROVED=YES
+python -m dmm34411a.hil --authorize \
+  --operator BENCH_OPERATOR --fixture APPROVED_DCV_FIXTURE \
+  --resource 'USB0::0x0957::0x0A07::YOUR_SERIAL::0::INSTR' \
+  --output hil-evidence/run001
+
+# Optional safe 1.25V DC reference (separate fixture approval required):
+python -m dmm34411a.hil --authorize --dcv-smoke \
+  --safe-dcv-fixture --reference-volts 1.25 --tolerance-volts 0.01 \
+  --operator BENCH_OPERATOR --fixture SAFE_1_25V_REFERENCE \
+  --resource 'USB0::0x0957::0x0A07::YOUR_SERIAL::0::INSTR' \
+  --output hil-evidence/run002
+```
+
+Create `hil-evidence/` locally beforehand; the chosen run directory must
+**not** exist. The runner captures raw SCPI query/write commands and replies
+in `transcript.jsonl`, plus `report.json` containing SHA-256, IDN,
+status snapshot, operator/fixture, timestamps and explicit case statuses.
+The passive run issues `*IDN?` and read-only status/memory count queries;
+it never drains the error/event queues or clears NVM. The optional DCV
+smoke selects **DC voltage only** and reports a provisional result against
+your supplied tolerance; it is not accuracy calibration or full HIL
+qualification. All other cases remain `NOT_RUN` until independently
+qualified. See `docs/HIL.md` for the complete checklist.
 
 ## v0.8.2 Offline qualification and stress CI
 

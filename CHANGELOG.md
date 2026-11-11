@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.3 — 2026-11-11 (Opt-in HIL preflight and evidence preparation)
+
+- Add `python -m dmm34411a.hil`: safe offline plan listing 11
+  hardware qualification groups, all explicitly NOT_RUN by default.
+- Add authorization-gated passive IDN/status/memory-count probe and
+  separately authorized low-voltage DCV reference smoke.
+- Persist raw SCPI query/write transcripts and SHA256-identified JSON
+  evidence in a newly published directory; never implicitly reset,
+  clear errors, delete NVM or switch to current/ohms/diode modes.
+- Add offline simulator tests for no-I/O planning, authorization,
+  wrong model, version-independent evidence, positive/failing DCV checks.
+- Correct stale v0.1.x coverage header/open-PR history; update live
+  task progress, SCPI matrix and HIL execution instructions.
+- This increment prepares hardware qualification; **real HIL NOT RUN**.
+
+
 ## 0.8.2 — 2026-11-11 (Offline CI and 1M buffer stress qualification)
 
 - Add independent REAL32/REAL64 simulator stress matrix for buffers of

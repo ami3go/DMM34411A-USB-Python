@@ -1,6 +1,9 @@
-# Keysight/Agilent 34411A — SCPI measurement and metrology command coverage (v0.3.2)
+# Keysight/Agilent 34411A — SCPI command coverage catalog (v0.8.3; incremental)
 
-**Baseline:** v0.3.2; measurement implementation v0.3.0, metrology v0.3.1 + v0.3.2 safety hardening.
+**Current release:** v0.8.3; original rows were prepared for v0.3.2 and
+the later v0.4.0–v0.8.2 command groups are appended below.
+**Qualification:** Offline simulator CI only. Physical HIL NOT RUN.
+**Historical baseline:** measurement v0.3.0, metrology v0.3.1/0.3.2.
 **Qualification:** Command strings verified against official Keysight 34410A/11A
 Quick Reference, not yet verified on a connected physical 34411A.
 **Legacy coverage:** Existing v0.2.0 acquisition/NVM functions remain in place.
@@ -169,3 +172,17 @@ Official sources: Keysight [34410A/11A User Guide](https://www.keysight.com/us/e
 Core source: [scpi-driver-core pinned IEEE definite-length block reader](https://github.com/ami3go/scpi-driver-core/blob/1e03b6837f96f200dc28233490639f2f080e1791/src/scpi_driver_core/scpi/binary_block.py).
 34411A command support: [Keysight command comparison](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf), FORMAT/DATA sections, and
 [Keysight User Guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf), Accessing Reading Memory.
+
+## v0.8.3 operator-controlled HIL evidence recording
+
+| Command family | Activity | Hardware authorization | Status |
+| --- | --- | --- | --- |
+| `*IDN?` | Live identity preflight + raw transcript | Explicit | Prepared, HIL NOT RUN |
+| `*STB?/*ESE?/*SRE?` | Status masks without read-to-clear | Explicit | Prepared, HIL NOT RUN |
+| `STAT:OPER/QUES:COND?/ENAB?` | Read-only status snapshot | Explicit | Prepared, HIL NOT RUN |
+| `DATA:POINts? RDG_STORE/NVMEM` | Safe memory count queries | Explicit | Prepared, HIL NOT RUN |
+| `CONFigure:VOLTage:DC; READ?` | DCV smoke against operator reference | **Separate fixture approval** | Prepared, HIL NOT RUN |
+| All remaining model commands | Bench sequence and acceptance evidence | Per fixture and destructive-operation gates | HIL NOT RUN |
+
+The runner does not issue automatic `*ESR?`, `SYSTem:ERRor?`, `*CLS`,
+`*RST`, current/diode/ohms mode changes or NVM modifications.

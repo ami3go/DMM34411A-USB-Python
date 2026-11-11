@@ -3,6 +3,54 @@
 **Status:** NOT RUN. No hardware evidence is asserted by the migration PR.
 The default CI never accesses a physical instrument.
 
+## v0.8.3 operator-authorized HIL evidence runner (NOT RUN)
+
+The `dmm34411a.hil` module defaults to a **pure offline plan**, and
+contains 11 qualification cases. It does not contact instruments or
+read/write files unless the user invokes a separately authorized run.
+
+```bash
+# No hardware or environment variables required:
+python -m dmm34411a.hil
+
+# Explicit opt-in, with physical bench approval:
+mkdir -p hil-evidence
+export DMM34411A_HIL_APPROVED=YES
+python -m dmm34411a.hil --authorize \
+  --operator BENCH_OPERATOR --fixture SAFE_APPROVED_FIXTURE \
+  --resource 'USB0::0x0957::0x0A07::YOUR_SERIAL::0::INSTR' \
+  --output hil-evidence/run001
+```
+
+When authorized, the default physical run only probes `*IDN?`,
+IEEE `*STB?/*ESE?/*SRE?`, operation/questionable condition and
+enable registers, SCPI version, physical terminal selector and
+volatile/NVM **counts**. It does **not** call `*CLS`, `*ESR?`,
+`SYSTem:ERRor?`, `*RST`, `DATA:DELete`, `ABORt` or change
+the measurement function. No destructive operation is retried.
+
+With an approved and independently verified source of ≤10 V and
+correct **voltage** terminals, add `--dcv-smoke --safe-dcv-fixture
+--reference-volts 1.25 --tolerance-volts 0.01`. This authorizes
+DCV configuration followed by a **single `READ?`**. The result is
+PROVISIONAL_PASS/FAIL under the user-specified tolerance; never a
+claim of traceable metrology accuracy.
+
+Each new evidence directory contains `transcript.jsonl` with
+actual query/write command/response events, and `report.json` with
+SHA-256 transcript digest, IDN, operator/fixture, timestamps, observed
+counts, per-case status and errors. Even a successful read-only probe
+has overall status `PARTIAL` and `hardware_qualified: false`.
+All unexecuted test groups are explicitly `NOT_RUN`. Scripts can
+record failures but never auto-reset or attempt recovery.
+
+**Remaining separately authorized manual HIL:** instrument accuracy
+against traceable uncertainty budgets; temperature/current/passive
+mode fixtures; internal/external pretrigger timing against a scope;
+REAL32/64 firmware block terminator/endian/retention/1M throughput;
+disposable memory drains; NVM power-cycle persistence; USB/LAN
+fault injection; math/status and display side effects; release sign-off.
+
 ## Preconditions
 
 1. Operator authorizes use of the bench DMM, checks calibration status,

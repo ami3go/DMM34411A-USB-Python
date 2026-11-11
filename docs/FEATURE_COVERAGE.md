@@ -1,18 +1,29 @@
 # Keysight 34411A — Driver Feature Coverage Matrix
 
-**Audit date:** 2026-11-10  
-**Audited implementation:** `main` commit `b955b09168b347853063444a635316f68bf3c589` (v0.1.2).  
-**Document release:** v0.1.3 historical audit; see v0.2.0 update below.  
-**Implementation location:** `dmm34411a/driver.py`.  
-**Open feature PR:** [#1 — Internal memory logging](https://github.com/ami3go/DMM34411A-USB-Python/pull/1), unmerged and based on the legacy direct-PyVISA driver.  
-**Related task:** [DMM34411A-NVM-BUFFER-001](../task/DMM34411A_NVM_CAPTURE_BUFFER_TASK.md).
+**Current software version:** v0.8.3 (2026-11-11); live implementation
+is composed under `dmm34411a/` with backward-compatible legacy shim
+under `src/`. All major P1-02/03/04/05/06 and P2-07/08 software
+increments have merged; P0 acquisition safety hardened in v0.8.1.
+**Offline CI:** Python 3.10–3.13 regression, package build/installation,
+critical Ruff and coverage; separate 1M reading simulator stress.
+**Physical instrument HIL:** NOT RUN; do not infer accuracy, timing,
+SCPI firmware acceptance, trigger behavior or physical throughput.
 
-> **Current planning note (2026-11-10):** PR #1 has been merged into
-> `main` as v0.2.0. The original table below is a historical v0.1.2 audit,
-> not a claim that PR #1 is still open. The remaining missing functions and
-> updated execution order are specified in
-> [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
-> Documentation-only v0.2.1 does not introduce new instrument features.
+**Historical note:** The original v0.1.2 coverage audit (commit
+`b955b09168b347853063444a635316f68bf3c589`) and initial
+documentation PR #1 references below are archived planning context.
+[PR #1](https://github.com/ami3go/DMM34411A-USB-Python/pull/1)
+was merged into v0.2.0; it is **not** an open feature PR.
+See [master coverage task](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md)
+and [physical HIL checklist](HIL.md).
+
+## v0.8.3 offline HIL preparation and evidence
+
+`python -m dmm34411a.hil` builds a no-I/O plan for 11 test
+groups. Separately approved live execution can capture passive IDN/status
+and optionally a low-voltage DCV smoke, with raw SCPI transcript,
+SHA-256 and explicit NOT_RUN evidence for remaining cases.
+**No real HIL has been performed by this increment.**
 
 ## v0.8.2 offline stress and release-test gates
 
