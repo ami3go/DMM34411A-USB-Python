@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dmm34411a-usb-python"
-version = "0.8.1"
+version = "0.8.2"
 description = "Keysight/Agilent 34411A USB and Ethernet SCPI DMM driver backed by scpi-driver-core"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,6 +22,8 @@ test = [
   "hypothesis>=6.100",
   "pyvisa-sim>=0.7.1",
   "build>=1.2",
+  "pytest-cov>=6",
+  "ruff>=0.9",
 ]
 
 [tool.hatch.metadata]
@@ -41,6 +43,7 @@ markers = [
   "integration: end-to-end simulation through VISA",
   "visa_sim: PyVISA-sim tests",
   "property: generated command-framing tests",
+  "stress: large-buffer simulation, opt-in in a separate CI job",
 ]
 
 [tool.ruff]

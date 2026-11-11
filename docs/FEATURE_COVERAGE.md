@@ -14,6 +14,13 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.8.2 offline stress and release-test gates
+
+CI includes a separate 1M-reading REAL32/REAL64 simulated-buffer test,
+50k-reading CSV/SHA256 verification, package coverage minimum, critical
+Ruff diagnostics and built-wheel import checks across Python 3.10–3.13.
+These do not constitute hardware HIL or metrology qualification.
+
 ## v0.8.1 P0 safety hardening
 
 Offline-tested: premature BUS trigger/wait rejection, external SCPI
