@@ -14,6 +14,14 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.7.0 P1-04 trigger implementation update
+
+Internal level/slope triggers, bounded pretrigger samples, multiple trigger
+events, local lifecycle state and explicit partial-count STOP are now
+implemented in the existing acquisition controller and offline tested.
+Actual trigger latency and pre/post samples on 34411A hardware remain
+**HIL NOT RUN**.
+
 ## v0.6.0 P1-06 status/diagnostics implementation
 
 `dmm.status` supports explicit error dequeue, bounded queue drain, IEEE

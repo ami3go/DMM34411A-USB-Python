@@ -279,3 +279,29 @@ with any existing configuration states and NVM readings backed up.
 8. Verify no automatic reset, clear, reading-memory deletion or retry.
    Attach raw SCPI logs, PASS/FAIL/NOT RUN and calibrated bench evidence.
 
+
+## v0.7.0 P1-04 internal trigger, pretrigger and STOP HIL (NOT RUN)
+
+1. Verify actual instrument identity is 34411A (not 34410A), record
+   firmware, calibration, driver SHA and exact source/transport wiring.
+2. Use isolated low-voltage source with known waveform, common ground and
+   bounded current. Select DCV only; test current/ohms triggers **only**
+   with separate operator approval and correct fuse/fixture.
+3. With rising then falling waveform crossing, configure
+   `TRIGger:SOURce INTernal`, distinct levels and POS/NEG slopes.
+   Check SCPI acceptance and query TRIGger:LEVel? and TRIGger:SLOPe?.
+4. Run pretrigger counts 0, 1 and 100 for 1000 per-trigger readings;
+   compare pre/post sample ordering to a simultaneous oscilloscope capture.
+5. Run finite trigger count 2 and 3, confirm exact count = samples ×
+   events, no stale buffer readings, and no NVM erasure.
+6. Drive an EXT trigger with **no event**. Wait with a short deadline,
+   verify timeout marks UNKNOWN and does not silently send ABORt or
+   start another acquisition. Explicitly call stop_acquisition and
+   confirm partial count and safe reconciliation.
+7. Qualify trigger-output polarity electrically with a properly isolated,
+   voltage-rated scope before using any connected DUT.
+8. Verify transport fault during INIT/ABORt and forced disconnect in
+   simulation first; any uncertain operation requires manual reconciliation.
+9. Attach raw SCPI transcript, traceable latency and pretrigger ordering
+   data, uncertainty budget, operator PASS/FAIL/NOT RUN and bench signoff.
+

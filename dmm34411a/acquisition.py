@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import math
 import time
+from datetime import datetime, timezone
+from enum import Enum
+from dataclasses import dataclass
 from collections.abc import Callable
+from .models import MeasurementFunction as F
 
 from scpi_driver_core import ConfigurationError, UnsupportedOperationError
 
@@ -18,6 +22,43 @@ NONVOLATILE_MEMORY_POINTS = 50_000
 ACQUISITION_TIMEOUT_S = 60.0
 READBACK_TIMEOUT_S = 60.0
 MAX_SINGLE_VOLATILE_READ = 20_000
+
+class AcquisitionState(str, Enum):
+    IDLE = "idle"
+    CONFIGURED = "configured"
+    ARMED = "armed"
+    COMPLETE = "complete"
+    ABORTED = "aborted"
+    FAULTED = "faulted"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class AcquisitionProgress:
+    """Host observation; state is local, not a firmware-confirmed status."""
+    acquired: int
+    target: int
+    state: AcquisitionState
+    trigger_source: str
+    trigger_count: int
+    samples_per_trigger: int
+    pretrigger_count: int
+    observed_at_utc: datetime
+
+
+_INTERNAL_SUPPORTED = frozenset({
+    F.DC_VOLTAGE, F.AC_VOLTAGE, F.DC_CURRENT, F.AC_CURRENT,
+    F.RESISTANCE_2W, F.RESISTANCE_4W,
+})
+_INTERNAL_LIMITS = {
+    F.DC_VOLTAGE: 1000.0,
+    F.AC_VOLTAGE: 750.0,
+    F.DC_CURRENT: 3.0,
+    F.AC_CURRENT: 3.0,
+    F.RESISTANCE_2W: 1.0e9,
+    F.RESISTANCE_4W: 1.0e9,
+}
+
 
 
 def _count(value: int, maximum: int, name: str) -> int:
@@ -39,7 +80,7 @@ def _seconds(value: float | None, name: str, *, zero: bool = False) -> float | N
 
 def _source(source: str) -> str:
     if not isinstance(source, str):
-        raise ConfigurationError("trigger_source must be IMMEDIATE, EXTERNAL, or BUS")
+        raise ConfigurationError("trigger_source must be IMMEDIATE, EXTERNAL, BUS or INTERNAL")
     try:
         return {
             "IMMEDIATE": "IMMediate",
@@ -47,6 +88,8 @@ def _source(source: str) -> str:
             "EXTERNAL": "EXTernal",
             "EXT": "EXTernal",
             "BUS": "BUS",
+            "INTERNAL": "INTernal",
+            "INT": "INTernal",
         }[source.strip().upper()]
     except KeyError as exc:
         raise ConfigurationError("trigger_source must be IMMEDIATE, EXTERNAL, or BUS") from exc
@@ -76,16 +119,113 @@ class AcquisitionController:
         self._sample_interval_s: float | None = None
         self._source = "IMMediate"
         self._completed = False
+        self._state = AcquisitionState.IDLE
+        self._triggers = 1
+        self._samples_per_trigger: int | None = None
+        self._pretrigger_count = 0
 
     @property
     def client(self):
         return self._meter.client
+
+    @property
+    def state(self) -> AcquisitionState:
+        """Locally inferred state; not guaranteed to mirror external controllers."""
+        return self._state
 
     def reset_on_close(self) -> None:
         self._target = None
         self._log_target = None
         self._sample_interval_s = None
         self._completed = False
+        self._state = AcquisitionState.IDLE
+        self._triggers = 1
+        self._samples_per_trigger = None
+        self._pretrigger_count = 0
+
+    def _require_34411a(self) -> None:
+        idn = self._meter.idn
+        parts = idn.split(",") if isinstance(idn, str) else []
+        if len(parts) < 2 or parts[1].strip().upper() != "34411A":
+            raise UnsupportedOperationError(
+                "internal/pretrigger acquisition requires *IDN?-verified 34411A"
+            )
+
+    def _active_function(self) -> F:
+        active = self._meter.measurement._active
+        if active is None or self._meter.measurement._generation != self._meter.session.generation:
+            raise RuntimeError("explicitly configure typed measurement before advanced triggering")
+        return active.function
+
+    def _level(self, value: float) -> str:
+        self._require_34411a()
+        function = self._active_function()
+        if function not in _INTERNAL_SUPPORTED:
+            raise UnsupportedOperationError(
+                "internal trigger supports only AC/DC voltage/current and 2-/4-wire ohms"
+            )
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ConfigurationError("trigger level must be a finite number")
+        number = float(value)
+        maximum = _INTERNAL_LIMITS[function]
+        if not math.isfinite(number) or abs(number) > maximum or (
+            function in (F.RESISTANCE_2W, F.RESISTANCE_4W) and number < 0
+        ):
+            raise ConfigurationError("trigger level outside conservative instrument function bounds")
+        return f"{number:.12g}"
+
+    @staticmethod
+    def _slope(slope: str) -> str:
+        if not isinstance(slope, str) or slope not in ("POS", "NEG"):
+            raise ConfigurationError("trigger slope must be POS or NEG")
+        return slope
+
+    def set_level_trigger(self, level: float, slope: str = "POS") -> None:
+        """Set explicit 34411A internal crossing trigger without arming it."""
+        token = self._level(level)
+        direction = self._slope(slope)
+        if self._state is not AcquisitionState.CONFIGURED:
+            raise RuntimeError("configure acquisition before selecting level trigger")
+        with self._meter.session.operation_lock():
+            try:
+                self.client.write(f"TRIGger:LEVel {token}")
+                self.client.write(f"TRIGger:SLOPe {direction}")
+                self.client.write("TRIGger:SOURce INTernal")
+            except Exception:
+                self._state = AcquisitionState.UNKNOWN
+                raise
+        self._source = "INTernal"
+
+    def set_trigger_output_slope(self, slope: str) -> None:
+        """Explicit external trigger-output polarity; requires wired HIL qualification."""
+        direction = self._slope(slope)
+        if self._state in (AcquisitionState.ARMED, AcquisitionState.UNKNOWN):
+            raise RuntimeError("do not change trigger output while armed/unknown")
+        with self._meter.session.operation_lock():
+            self.client.write(f"OUTPut:TRIGger:SLOPe {direction}")
+
+    def trigger_settings_raw(self) -> dict[str, str]:
+        """Non-destructive readback. No status/event clearing or trigger."""
+        with self._meter.session.operation_lock():
+            return {
+                "source": self.client.query("TRIGger:SOURce?").strip(),
+                "trigger_count": self.client.query("TRIGger:COUNt?").strip(),
+                "sample_count": self.client.query("SAMPle:COUNt?").strip(),
+                "pretrigger_count": self.client.query("SAMPle:COUNt:PRETrigger?").strip(),
+            }
+
+    def progress_snapshot(self) -> AcquisitionProgress:
+        """One bounded point count observation with local lifecycle state."""
+        if self._target is None or self._samples_per_trigger is None:
+            raise RuntimeError("configure acquisition before checking progress")
+        count = self.volatile_count()
+        return AcquisitionProgress(
+            acquired=count, target=self._target, state=self._state,
+            trigger_source=self._source, trigger_count=self._triggers,
+            samples_per_trigger=self._samples_per_trigger,
+            pretrigger_count=self._pretrigger_count,
+            observed_at_utc=datetime.now(timezone.utc),
+        )
 
     def configure(
         self,
@@ -95,32 +235,77 @@ class AcquisitionController:
         trigger_source: str = "IMMEDIATE",
         trigger_delay_seconds: float | None = None,
         persist: bool = False,
+        trigger_count: int = 1,
+        pretrigger_count: int = 0,
+        trigger_level: float | None = None,
+        trigger_slope: str = "POS",
     ) -> int:
+        if self._state in (AcquisitionState.ARMED, AcquisitionState.UNKNOWN):
+            raise RuntimeError("acquisition is armed/unknown; explicitly abort before reconfigure")
         limit = NONVOLATILE_MEMORY_POINTS if persist else VOLATILE_MEMORY_POINTS
         points = _count(points, limit, "sample count")
+        count = _count(trigger_count, limit, "trigger_count")
+        total = points * count
+        if total > limit:
+            raise ConfigurationError(f"trigger_count * sample count exceeds {limit} reading capacity")
+        if type(pretrigger_count) is not int or not 0 <= pretrigger_count < points:
+            raise ConfigurationError("pretrigger_count must be an integer >=0 and < samples per trigger")
         interval = _seconds(sample_interval_seconds, "sample_interval_seconds")
         delay = _seconds(trigger_delay_seconds, "trigger_delay_seconds", zero=True)
+        if delay is not None and delay > 3600:
+            raise ConfigurationError("trigger delay may not exceed 3600 seconds")
         source = _source(trigger_source)
+        slope = self._slope(trigger_slope)
+        level = None
+        if source == "INTernal":
+            if trigger_level is None:
+                raise ConfigurationError("INTERNAL trigger requires trigger_level")
+            level = self._level(trigger_level)
+        elif trigger_level is not None:
+            raise ConfigurationError("trigger_level is valid only for INTERNAL trigger")
+        if pretrigger_count:
+            self._require_34411a()
+            function = self._active_function()
+            if function in (F.CONTINUITY, F.DIODE):
+                raise UnsupportedOperationError("pretrigger not supported for diode or continuity")
+            if source == "IMMediate":
+                raise UnsupportedOperationError("pretrigger requires an event trigger, not IMMEDIATE")
+        had_pretrigger = self._pretrigger_count > 0
         self.reset_on_close()
         # No implicit INIT, *RST, *CLS, data delete, or VISA clear.
-        with self._meter.session.operation_lock():
-            self.client.write(f"SAMPle:COUNt {points}")
-            self.client.write("TRIGger:COUNt 1")
-            self.client.write(f"TRIGger:SOURce {source}")
-            if interval is None:
-                self.client.write("SAMPle:SOURce AUTO")
-            else:
-                self.client.write("SAMPle:SOURce TIMer")
-                self.client.write(f"SAMPle:TIMer {interval:.12g}")
-            if delay is None:
-                self.client.write("TRIGger:DELay:AUTO ON")
-            else:
-                self.client.write("TRIGger:DELay:AUTO OFF")
-                self.client.write(f"TRIGger:DELay {delay:.12g}")
-        self._target = points
-        self._log_target = points if persist else None
+        try:
+            with self._meter.session.operation_lock():
+                self.client.write(f"SAMPle:COUNt {points}")
+                self.client.write(f"TRIGger:COUNt {count}")
+                self.client.write(f"TRIGger:SOURce {source}")
+                if level is not None:
+                    self.client.write(f"TRIGger:LEVel {level}")
+                    self.client.write(f"TRIGger:SLOPe {slope}")
+                if pretrigger_count or had_pretrigger:
+                    # Explicitly remove a prior pretrigger setup on this same session.
+                    self.client.write(f"SAMPle:COUNt:PRETrigger {pretrigger_count}")
+                if interval is None:
+                    self.client.write("SAMPle:SOURce AUTO")
+                else:
+                    self.client.write("SAMPle:SOURce TIMer")
+                    self.client.write(f"SAMPle:TIMer {interval:.12g}")
+                if delay is None:
+                    self.client.write("TRIGger:DELay:AUTO ON")
+                else:
+                    self.client.write("TRIGger:DELay:AUTO OFF")
+                    self.client.write(f"TRIGger:DELay {delay:.12g}")
+        except Exception:
+            self._state = AcquisitionState.UNKNOWN
+            raise
+        self._target = total
+        self._log_target = total if persist else None
         self._sample_interval_s = interval
         self._source = source
+        self._triggers = count
+        self._samples_per_trigger = points
+        self._pretrigger_count = pretrigger_count
+        self._state = AcquisitionState.CONFIGURED
+        # Backward-compatible return: per-trigger count, not multiplied total.
         return points
 
     def initiate(self, *, log: bool = False, clear_existing: bool = False) -> None:
@@ -132,8 +317,12 @@ class AcquisitionController:
             )
         if log and self.nvm_count() != 0:
             raise FileExistsError("NVM contains readings; export them and delete explicitly first")
+        if self._state is not AcquisitionState.CONFIGURED:
+            raise RuntimeError("acquisition must be configured (not armed/unknown) to initiate")
         self._completed = False
+        self._state = AcquisitionState.UNKNOWN  # INIT may succeed even if reply is lost.
         self.client.write("INITiate")
+        self._state = AcquisitionState.ARMED
 
     def send_bus_trigger(self) -> None:
         if self._target is None or self._source != "BUS":
@@ -141,8 +330,24 @@ class AcquisitionController:
         self.client.write("*TRG")
 
     def abort(self) -> None:
+        # ABORt may have taken effect despite timeout; never automatically retry.
+        self._state = AcquisitionState.UNKNOWN
         self.client.write("ABORt")
         self._completed = False
+        self._state = AcquisitionState.ABORTED
+
+    def abort_and_snapshot(self) -> AcquisitionProgress:
+        """Operator-controlled STOP plus partial-count metadata.
+
+        The count is read only after ABORt succeeded. If read fails, state
+        becomes UNKNOWN; the operator must reconcile the instrument.
+        """
+        self.abort()
+        try:
+            return self.progress_snapshot()
+        except Exception:
+            self._state = AcquisitionState.UNKNOWN
+            raise
 
     def _point_count(self, memory: str, maximum: int, timeout_s: float | None = None) -> int:
         response = self.client.query(f"DATA:POINts? {memory}", timeout_s=timeout_s).strip()
@@ -182,18 +387,31 @@ class AcquisitionController:
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("acquisition timed out")
+                self._state = AcquisitionState.UNKNOWN
+                raise TimeoutError("acquisition timed out; instrument may still be armed")
             # Request uses a finite remaining budget; each poll is individually bounded.
-            count = self.volatile_count(timeout_s=remaining)
+            try:
+                count = self.volatile_count(timeout_s=remaining)
+            except Exception:
+                self._state = AcquisitionState.UNKNOWN
+                raise
             if count < 0 or count > VOLATILE_MEMORY_POINTS:
                 raise ValueError(f"invalid volatile point count: {count}")
             if count >= self._target:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
+                    self._state = AcquisitionState.UNKNOWN
                     raise TimeoutError("acquisition completion timed out")
-                if self.client.query("*OPC?", timeout_s=remaining).strip() != "1":
-                    raise RuntimeError("instrument did not acknowledge operation completion")
+                try:
+                    if self.client.query("*OPC?", timeout_s=remaining).strip() != "1":
+                        self._state = AcquisitionState.FAULTED
+                        raise RuntimeError("instrument did not acknowledge operation completion")
+                except Exception:
+                    if self._state is not AcquisitionState.FAULTED:
+                        self._state = AcquisitionState.UNKNOWN
+                    raise
                 self._completed = True
+                self._state = AcquisitionState.COMPLETE
                 return count
             time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
 
