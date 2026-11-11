@@ -11,16 +11,29 @@ from scpi_driver_core.simulation import ScriptedScpiTransport
 
 IDN = "Agilent Technologies,34411A,SIM0001,1.0"
 _SCPI_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:?"
+# A SCPI program header cannot be a bare colon or start with a digit.
+# The scripted core intentionally strips a leading root-path colon.
+_VALID_SCPI_HEADER = st.from_regex(
+    r"[A-Z][A-Z0-9]{0,7}(?::[A-Z][A-Z0-9]{0,7}){0,2}\??",
+    fullmatch=True,
+)
 
 
 @pytest.mark.property
 @settings(max_examples=40, deadline=None)
-@given(command=st.text(alphabet=_SCPI_CHARACTERS, min_size=1, max_size=40))
+@given(command=_VALID_SCPI_HEADER)
 def test_command_passthrough_keeps_one_message(command: str) -> None:
     transport = ScriptedScpiTransport(unknown_command_error=None).on("*IDN?", IDN)
     with DMM_34411A(transport=transport) as meter:
         meter.cmd_write(command)
     assert transport.history == ["*IDN?", command]
+
+
+def test_explicit_root_colon_is_normalized_by_scripted_core() -> None:
+    transport = ScriptedScpiTransport(unknown_command_error=None).on("*IDN?", IDN)
+    with DMM_34411A(transport=transport) as meter:
+        meter.cmd_write(":SENSe:VOLTage:DC:RANGe 10")
+    assert transport.history == ["*IDN?", "SENSe:VOLTage:DC:RANGe 10"]
 
 
 @pytest.mark.property
