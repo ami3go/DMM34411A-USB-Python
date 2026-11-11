@@ -3,8 +3,64 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.6.0** (the original 2021 code had no package version). The core
+**Version: 0.7.0** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## P1-04 — Advanced 34411A triggering (v0.7.0)
+
+This extends the existing `AcquisitionController` and preserves
+`start_acquisition()`, `wait_for_data_log()`, `abort_acquisition()` and
+NVM retention behavior. It adds *software-only* support for instrument
+internal crossing trigger, pretrigger and finite multiple-trigger bursts.
+
+```python
+from dmm34411a import DMM_34411A, AcquisitionState
+
+# This command sequence requires operator-approved DC voltage input wiring.
+with DMM_34411A(resource_name="USB0::...::INSTR") as dmm:
+    dmm.configure_dc_voltage()
+    dmm.configure_volatile_acquisition(
+        points=1000, trigger_source="INTERNAL", trigger_level=1.5,
+        trigger_slope="POS", trigger_count=2, pretrigger_count=100,
+        sample_interval_seconds=0.0001,
+    )
+    print(dmm.acquisition.trigger_settings_raw())  # read-only
+    dmm.start_acquisition()
+    # Waiting is deadline-bound. Timeout leaves UNKNOWN; requires explicit
+    # reconciliation/ABORt before any new configuration.
+    count = dmm.acquisition.wait_complete(timeout_s=60.0)
+    assert dmm.acquisition.state is AcquisitionState.COMPLETE
+    print(count, dmm.acquisition_progress_snapshot())
+```
+
+**Contracts and restrictions:**
+
+- Only an IDN-verified **34411A** may use internal/pretrigger mode.
+  `INTERNAL` requires an explicitly configured **AC/DC voltage, AC/DC
+  current, or 2-/4-wire resistance** function and finite trigger level.
+  Diode, continuity, frequency, period, capacitance and temperature are
+  explicitly rejected for internal triggering.
+- `pretrigger_count` must be a nonnegative integer smaller than samples
+  per trigger. A positive value requires an event trigger and known compatible
+  mode. For immediate triggering, positive pretrigger is rejected.
+- `trigger_count × points` must not exceed **1,000,000 volatile readings**
+  or **50,000 NVM readings** (for logging). The return of
+  `configure_volatile_acquisition()` remains the per-trigger point count,
+  preserving backward compatibility. Progress target is the combined total.
+- Local `AcquisitionState` values are IDLE, CONFIGURED, ARMED, COMPLETE,
+  ABORTED, FAULTED and UNKNOWN. These are *host-local*, not a replacement
+  for actual instrument status. A read/command timeout leaves UNKNOWN and
+  no implicit `ABORt` or retry is issued. Use `stop_acquisition()` to
+  request one explicit ABORt and query the remaining count.
+- `set_level_trigger(level,slope)` adjusts a previously configured,
+  non-armed acquisition. `set_trigger_output_slope(slope)` changes the
+  electrical output polarity and requires fixture-specific hardware approval.
+- `trigger_settings_raw()` queries TRIG:SOUR?, TRIG:COUN?, SAMP:COUN? and
+  SAMP:COUN:PRETrigger?. Neither a software state nor an `*OPC?` reply
+  establishes trigger latency or per-sample timebase; **real HIL required**.
+- Default legacy calls retain their previous command sequence and behavior.
+  After positive pretrigger is configured in the same session, a subsequent
+  configuration explicitly resets it to zero to prevent stale pretrigger setup.
 
 ## P1-06 — SCPI status and diagnostics (v0.6.0)
 

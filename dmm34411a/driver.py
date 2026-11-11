@@ -14,6 +14,8 @@ from scpi_driver_core.exceptions import ConfigurationError
 from scpi_driver_core import ScpiClient, ScpiSession, UnsupportedOperationError
 from dmm34411a.acquisition import (
     AcquisitionController,
+    AcquisitionState,
+    AcquisitionProgress,
     ACQUISITION_TIMEOUT_S,
     READBACK_TIMEOUT_S,
     VOLATILE_MEMORY_POINTS,
@@ -312,20 +314,28 @@ class DMM_34411A:
     def configure_volatile_acquisition(
         self, points: int, sample_interval_seconds: float | None = None,
         trigger_source: str = "IMMEDIATE", trigger_delay_seconds: float | None = None,
+        *, trigger_count: int = 1, pretrigger_count: int = 0,
+        trigger_level: float | None = None, trigger_slope: str = "POS",
     ) -> int:
         return self.acquisition.configure(
             points, sample_interval_seconds=sample_interval_seconds,
             trigger_source=trigger_source, trigger_delay_seconds=trigger_delay_seconds,
+            trigger_count=trigger_count, pretrigger_count=pretrigger_count,
+            trigger_level=trigger_level, trigger_slope=trigger_slope,
         )
 
     def configure_data_log(
         self, points: int, sample_interval_seconds: float | None = None,
         trigger_source: str = "IMMEDIATE", trigger_delay_seconds: float | None = None,
+        *, trigger_count: int = 1, pretrigger_count: int = 0,
+        trigger_level: float | None = None, trigger_slope: str = "POS",
     ) -> int:
         return self.acquisition.configure(
             points, sample_interval_seconds=sample_interval_seconds,
             trigger_source=trigger_source, trigger_delay_seconds=trigger_delay_seconds,
-            persist=True,
+            persist=True, trigger_count=trigger_count,
+            pretrigger_count=pretrigger_count,
+            trigger_level=trigger_level, trigger_slope=trigger_slope,
         )
 
     def start_acquisition(self) -> None:
@@ -379,6 +389,22 @@ class DMM_34411A:
 
     def abort_acquisition(self) -> None:
         self.acquisition.abort()
+
+    def stop_acquisition(self) -> AcquisitionProgress:
+        """Operator-controlled ABORt and partial sample-count observation."""
+        return self.acquisition.abort_and_snapshot()
+
+    def acquisition_progress_snapshot(self) -> AcquisitionProgress:
+        """Local lifecycle plus one instrument point-count observation."""
+        return self.acquisition.progress_snapshot()
+
+    def set_level_trigger(self, level: float, slope: str = "POS") -> None:
+        """Set 34411A internal crossing trigger for an explicit compatible mode."""
+        self.acquisition.set_level_trigger(level, slope=slope)
+
+    def set_trigger_output_slope(self, slope: str) -> None:
+        """Configure trigger output polarity; do not connect before HIL approval."""
+        self.acquisition.set_trigger_output_slope(slope)
 
     def send_bus_trigger(self) -> None:
         self.acquisition.send_bus_trigger()

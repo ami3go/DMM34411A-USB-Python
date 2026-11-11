@@ -137,3 +137,19 @@ No implicit state overwrite, recall, restore change or display mutation.
 Keysight reference: [34410A/34411A SCPI comparison 5990-3515](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf),
 pp. 3 and 13–14. The documentation confirms command families but is
 not evidence that a particular instrument's firmware accepted the commands.
+
+## v0.7.0 P1-04 acquisition triggers (offline tested, HIL NOT RUN)
+
+| Function | Command | API | Constraints |
+| --- | --- | --- | --- |
+| Internal analog trigger | `TRIGger:SOURce INTernal` | `configure_volatile_acquisition(trigger_source="INTERNAL",trigger_level=...)` | 34411A-only; voltage/current/2-/4-wire Ω |
+| Level crossing | `TRIGger:LEVel x`, `TRIGger:LEVel?` | configure or `set_level_trigger()` | finite numeric and bounded by selected function |
+| Crossing slope | `TRIGger:SLOPe POS/NEG`, `TRIGger:SLOPe?` | configure or `set_level_trigger()` | POS/NEG |
+| Pretrigger samples | `SAMPle:COUNt:PRETrigger n` | `pretrigger_count=n` | 34411A; 0 <= n < samples/trigger |
+| Multiple trigger events | `TRIGger:COUNt n` | `trigger_count=n` | total count <= 1M volatile or <=50k NVM |
+| Trigger source/readback | `TRIGger:SOURce?` | `trigger_settings_raw()` | non-consuming readback |
+| Trigger output slope | `OUTPut:TRIGger:SLOPe POS/NEG` | `set_trigger_output_slope()` | electrical output not yet HIL-qualified |
+| Explicit abort | `ABORt` | `stop_acquisition()` | state unknown on timeout; no auto retry |
+| Completion | `DATA:POINts? RDG_STORE`, `*OPC?` | `wait_complete(timeout_s)` | deadline-bound, marks complete only on ack |
+
+Official sources: Keysight [34410A/11A User Guide](https://www.keysight.com/us/en/assets/9018-05586/user-manuals/9018-05586.pdf), triggering pages 68–74; [SCPI Command Comparison](https://www.keysight.com/us/en/assets/7018-02044/white-papers-archived/5990-3515.pdf), SAMPLE/TRIGGER sections.

@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.0 — 2026-11-11 (P1-04 advanced acquisition control, offline-only)
+
+- Extend existing AcquisitionController with 34411A-only internal trigger
+  crossing level/slope, pretrigger count, finite repeated triggers and
+  total volatile/NVM capacity checks.
+- Introduce local AcquisitionState and typed AcquisitionProgress
+  (local state, observed count, target, trigger settings, host UTC time).
+- Add explicit read-only trigger settings queries and optional trigger
+  output slope settings (fixture qualification required).
+- Make acquisition waiting finite for never-triggered EXT/BUS/INT modes,
+  mark uncertain timeout as UNKNOWN, and prevent unsafe reconfiguration
+  until explicit ABORt. One explicit STOP can report partial count.
+- Preserve all legacy acquisition method names, string-returning DMM
+  measurements, USB/LAN and protected NVM storage; no auto reset,
+  buffer erase or implicit hardware interaction on connect/close.
+- Add offline scripted regression and opt-in HIL instructions.
+- Physical trigger latency, pretrigger ordering and external electrical
+  safety remain **NOT RUN**.
+
+
 ## 0.6.0 — 2026-11-11 (P1-06 status and diagnostics, offline-only)
 
 - Add `dmm.status`, `get_error()`, bounded `drain_errors()`,

@@ -1,6 +1,6 @@
 """Keysight/Agilent 34411A DMM driver using scpi-driver-core."""
 
-from .acquisition import NONVOLATILE_MEMORY_POINTS, VOLATILE_MEMORY_POINTS
+from .acquisition import NONVOLATILE_MEMORY_POINTS, VOLATILE_MEMORY_POINTS, AcquisitionState, AcquisitionProgress
 from .models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from .metrology import MetrologyController, MetrologySnapshot
 from .calculation import MathController, MathMode, Statistics, Limits
@@ -16,7 +16,7 @@ from .driver import (
     DMM_34411A,
 )
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 __all__ = [
     "DMM_34411A",
     "DEFAULT_TIMEOUT_S",
@@ -26,6 +26,8 @@ __all__ = [
     "USER_REQUESTED_POINTS",
     "NONVOLATILE_MEMORY_POINTS",
     "VOLATILE_MEMORY_POINTS",
+    "AcquisitionState",
+    "AcquisitionProgress",
     "MeasurementConfig",
     "MeasurementFunction",
     "MeasurementResult",
