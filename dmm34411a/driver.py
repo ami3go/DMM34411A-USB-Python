@@ -27,6 +27,9 @@ from dmm34411a.calculation import MathController
 from dmm34411a.storage import InstrumentStateController
 from dmm34411a.display import DisplayController
 from dmm34411a.status import StatusController, ScpiError, ErrorDrain, DiagnosticSnapshot
+from dmm34411a.transfer import (
+    ReadingTransferController, BinaryCapture, ExportReceipt,
+)
 from dmm34411a.models import MeasurementConfig, MeasurementFunction, MeasurementResult, TemperatureProbe
 from scpi_driver_core.scpi import ScpiTextCodec
 from scpi_driver_core.transport import SupportsDeviceClear, TcpTransport, Transport, VisaTransport
@@ -112,6 +115,7 @@ class DMM_34411A:
         self.storage = InstrumentStateController(self)
         self.display = DisplayController(self)
         self.status = StatusController(self)
+        self.transfer = ReadingTransferController(self)
         if auto_open:
             self.open()
 
@@ -425,6 +429,28 @@ class DMM_34411A:
         """Read non-destructive condition/status registers; no event/error reads."""
         return self.status.snapshot(
             include_memory=include_memory, include_system=include_system
+        )
+
+    # -- v0.8.0 binary readout and atomic host export ----------------------
+
+    def fetch_volatile_binary(
+        self, *, precision_bits: int = 32, timeout_s: float = 120.0
+    ) -> BinaryCapture:
+        """Non-destructive raw IEEE binary FETCh? (up to 1M readings)."""
+        return self.transfer.fetch_volatile_binary(
+            precision_bits=precision_bits, timeout_s=timeout_s
+        )
+
+    def export_volatile_bundle(
+        self, directory, *, destructive: bool = False,
+        max_points: int | None = None, precision_bits: int = 32,
+        chunk_size: int = 10_000, timeout_s: float = 120.0,
+    ) -> ExportReceipt:
+        """Atomically publish readings.csv and metadata.json under new directory."""
+        return self.transfer.export_volatile_bundle(
+            directory, destructive=destructive, max_points=max_points,
+            precision_bits=precision_bits, chunk_size=chunk_size,
+            timeout_s=timeout_s,
         )
 
     def device_clear(self) -> None:

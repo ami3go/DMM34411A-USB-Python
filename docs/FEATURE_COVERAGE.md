@@ -14,6 +14,14 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.8.0 P1-05 binary transfer/export update
+
+The pinned core's IEEE definite-length binary reader supports bounded
+REAL32/REAL64 non-destructive FETCh, explicit DATA:REMove? chunk streaming,
+SHA256/CSV+JSON atomic host exports, and exact buffer/count reconciliation.
+Unsupported uncertain destructive replay and R? remain prohibited.
+Physical HIL for transfer framing, throughput, and NVM retention is NOT RUN.
+
 ## v0.7.0 P1-04 trigger implementation update
 
 Internal level/slope triggers, bounded pretrigger samples, multiple trigger

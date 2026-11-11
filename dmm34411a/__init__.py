@@ -7,6 +7,10 @@ from .calculation import MathController, MathMode, Statistics, Limits
 from .storage import InstrumentStateController, StoredState
 from .display import DisplayController
 from .status import StatusController, ScpiError, ErrorDrain, StatusBank, DiagnosticSnapshot
+from .transfer import (
+    ReadingTransferController, BinaryCapture, ReadingChunk, ExportReceipt,
+    TransferUncertainError, decode_readings,
+)
 from .driver import (
     DEFAULT_TIMEOUT_S,
     DEFAULT_LAN_SOCKET_PORT,
@@ -16,7 +20,7 @@ from .driver import (
     DMM_34411A,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = [
     "DMM_34411A",
     "DEFAULT_TIMEOUT_S",
@@ -44,6 +48,12 @@ __all__ = [
     "ErrorDrain",
     "StatusBank",
     "DiagnosticSnapshot",
+    "ReadingTransferController",
+    "BinaryCapture",
+    "ReadingChunk",
+    "ExportReceipt",
+    "TransferUncertainError",
+    "decode_readings",
     "Statistics",
     "Limits",
     "__version__",
