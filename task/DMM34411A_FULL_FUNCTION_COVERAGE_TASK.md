@@ -1,5 +1,26 @@
 # DMM34411A-FULL-API-001 — Complete Missing Measurement, Metrology, Trigger and System Functions
 
+## Current implementation status — 2026-11-11, v0.8.3
+
+This document retains its original v0.2.0 **historical planning baseline**.
+Software implementation is substantially complete and merged:
+P1-02 measurement modes (PR #7); P1-03 metrology (#8/#10);
+P2-07 math (#11); P2-08 state/display (#12);
+P1-06 status/diagnostics (#13); P1-04 triggering (#14);
+P1-05 binary acquisition/export (#15);
+P0 transfer/acquisition safety (#16); and separate 1M-point
+offline stress, packaging, coverage and lint gates (#17).
+The v0.8.3 preflight/evidence runner is implemented software-only.
+
+**Remaining external gates:** actual 34411A firmware command acceptance,
+model-specific trigger/electrical behavior, calibration accuracy,
+end-to-end hardware transfer/NVM retention and physical USB/LAN
+fault recovery; evidence-based HIL sign-off; then qualified release
+tag and final P1-10 hardware release closure.
+All new hardware checks remain **NOT RUN** until executed with bench
+approval. Do not confuse green simulator tests with HIL certification.
+
+
 **Priority:** P0 (safety and measurement integrity); P1 (essential function coverage); P2 (instrument convenience)  
 **Repository:** https://github.com/ami3go/DMM34411A-USB-Python  
 **Core dependency:** https://github.com/ami3go/scpi-driver-core  

@@ -126,3 +126,6 @@ dmypy.json
 .idea/DMM34411A.iml
 .idea/DMM34411A.iml
 *.iml
+
+# Local bench evidence may contain real device IDs / laboratory data
+hil-evidence/
