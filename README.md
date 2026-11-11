@@ -3,8 +3,24 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.0** (the original 2021 code had no package version). The core
+**Version: 0.8.1** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.1 P0 safety and export recovery
+
+The instrument must be ARMED by `start_acquisition()` before
+`send_bus_trigger()` or `wait_complete()` can accept readings; this
+prevents stale buffered samples being mistaken for a new run. Raw SCPI
+commands invalidate the typed run's completion evidence. A completed
+NVM copy is latched against a second `DATA:COPY`, even when completion
+was uncertain; a new operator-reviewed acquisition is required.
+
+If a destructive export fails **after confirmed rows were removed**, the
+driver raises the original exception with `partial_directory` and
+`confirmed_csv_rows` attributes and saves an INCOMPLETE CSV+JSON
+bundle with SHA256 in a `<destination>.partial.<random>` directory.
+The current interrupted chunk can be consumed despite an exception:
+**do not automatically repeat it**. Reconcile instrument counts first.
 
 ## P1-05 — High-speed binary capture and host export (v0.8.0)
 

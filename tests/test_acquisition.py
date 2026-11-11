@@ -50,11 +50,14 @@ def test_configuration_is_core_serialized_and_not_destructive():
             1000, sample_interval_seconds=0.005, trigger_source="BUS",
             trigger_delay_seconds=0,
         ) == 1000
+        with pytest.raises(RuntimeError):
+            dmm.send_bus_trigger()
+        dmm.start_acquisition()
         dmm.send_bus_trigger()
     assert transport.history == [
         "*IDN?", "SAMPle:COUNt 1000", "TRIGger:COUNt 1",
         "TRIGger:SOURce BUS", "SAMPle:SOURce TIMer", "SAMPle:TIMer 0.005",
-        "TRIGger:DELay:AUTO OFF", "TRIGger:DELay 0", "*TRG",
+        "TRIGger:DELay:AUTO OFF", "TRIGger:DELay 0", "INITiate", "*TRG",
     ]
 
 

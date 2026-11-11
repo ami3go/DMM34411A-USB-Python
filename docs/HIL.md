@@ -337,3 +337,20 @@ Use an explicitly authorized fixture and disposable buffer contents.
 10. Attach command traces, CRC/SHA checks, file artifacts, uncertainty,
     complete/incomplete transfer outcome, PASS/FAIL/NOT RUN and operator signoff.
 
+
+## v0.8.1 P0 replay/stale-read safety physical checks — NOT RUN
+
+1. With disposable DCV source and approved fixture, configure BUS acquisition
+   and verify premature `send_bus_trigger()` is rejected before INITiate.
+2. Verify stale volatile counts cannot make `wait_complete()` succeed unless
+   the current run reached ARMED state through the typed API.
+3. For a disposable acquisition, verify raw SCPI write/query invalidates local
+   completion state and blocks any subsequent `DATA:COPY NVMEM,RDG_STORE`.
+4. In simulation only, fail immediately after a `DATA:COPY` attempt.
+   Verify a second call refuses to replay the copy. Do not deliberately
+   corrupt NVM or disconnect hardware while a copy is in progress.
+5. In simulation only, interrupt the second destructive binary chunk
+   and inspect the `.partial.<random>` directory metadata, confirmed
+   readings, SHA and explicit UNKNOWN chunk state.
+6. Verify no implicit `*RST`, `*CLS`, `ABORt`, NVM erase or replay in
+   connection and error recovery paths. Record evidence before HIL signoff.

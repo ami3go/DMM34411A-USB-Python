@@ -187,11 +187,15 @@ class DMM_34411A:
     def cmd_write(self, txt_cmd: str) -> None:
         # External SCPI may change the instrument's configured measurement mode.
         self.measurement.invalidate()
+        self.acquisition.invalidate_external_io()
         self.client.write(txt_cmd)
 
     def cmd_query(self, txt_cmd: str) -> str:
         # Raw queries can include MEASure? which reconfigures the instrument.
         self.measurement.invalidate()
+        # A raw query can itself trigger, read or reconfigure the meter.
+        if txt_cmd.strip().upper() != "*IDN?":
+            self.acquisition.invalidate_external_io()
         # Retain the legacy string result; remove only line termination.
         return self.client.query(txt_cmd).rstrip("\r\n")
 
