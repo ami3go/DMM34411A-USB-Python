@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0 — 2026-11-11 (P1-06 status and diagnostics, offline-only)
+
+- Add `dmm.status`, `get_error()`, bounded `drain_errors()`,
+  non-consuming `diagnostics_snapshot()` with typed identity, IEEE status,
+  operation/questionable condition and enable masks, terminal selection and
+  optional reading-memory counts.
+- Add explicit `*ESR?` / status event read-to-clear methods, ESE/SRE and
+  status enable configuration, bounded `*OPC?` and opt-in self-test.
+- Preserve existing raw response and error text; reject malformed, negative,
+  out-of-bounds and SCPI-injection inputs before any writes.
+- Never implicitly call `*CLS`, `*RST`, `*TST?`, `*ESR?`,
+  `SYSTem:ERRor?` or status event registers from snapshot/open/close.
+- Add scripted transport coverage for error drain limits, event semantics,
+  bounded timeouts and no auto-clear, with operator-controlled HIL checklist.
+- No physical instrument qualification claimed.
+
+
 ## 0.5.0 — 2026-11-10 (P2-08 state and display)
 
 - Add safe persistent configuration state slots 1–4 with query/validation,

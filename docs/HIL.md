@@ -257,3 +257,25 @@ with any existing configuration states and NVM readings backed up.
    beeper and beeper state only if audible operation is authorized.
 9. Verify open/close sends only IDN, no *RST, *CLS, *SAV, *RCL, display,
    state deletion or NVM write. Document raw SCPI/errors and all results.
+
+## v0.6.0 P1-06 status and diagnostics HIL checklist (NOT RUN)
+
+1. Record operator authorization, model/serial/firmware, 34411A options,
+   driver/core SHAs, transport backend, fixture, power and risk assessment.
+2. Open and take `diagnostics_snapshot(include_memory=True)` on a safe
+   idle bench. Capture STB, ESE, SRE, OPERATION/QUESTIONABLE condition+enable,
+   SCPI version and `ROUTe:TERMinals?`; verify no *CLS/*ESR?/ERR? occurred.
+3. Independently inspect any pre-existing error queue and event evidence
+   before authorizing **consumptive** `get_error()` or `drain_errors()`.
+4. Introduce one benign deliberate invalid command only with operator
+   approval; check error code/message parsing, bounded drain and sentinel.
+5. Verify status event registers and standard event register only in a
+   disposable session where read-to-clear behavior is explicitly accepted.
+6. Test enable-mask and SRQ behavior without active DUT or safety interlocks
+   depending on the same status. Restore prior settings deliberately.
+7. Run bounded `*OPC?` only with no long-running acquisition and check a
+   simulated timeout first. Self-test `*TST?` is separately authorized:
+   it may be slow/disruptive and may invalidate instrument configuration.
+8. Verify no automatic reset, clear, reading-memory deletion or retry.
+   Attach raw SCPI logs, PASS/FAIL/NOT RUN and calibrated bench evidence.
+

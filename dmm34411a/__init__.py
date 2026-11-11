@@ -6,6 +6,7 @@ from .metrology import MetrologyController, MetrologySnapshot
 from .calculation import MathController, MathMode, Statistics, Limits
 from .storage import InstrumentStateController, StoredState
 from .display import DisplayController
+from .status import StatusController, ScpiError, ErrorDrain, StatusBank, DiagnosticSnapshot
 from .driver import (
     DEFAULT_TIMEOUT_S,
     DEFAULT_LAN_SOCKET_PORT,
@@ -15,7 +16,7 @@ from .driver import (
     DMM_34411A,
 )
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 __all__ = [
     "DMM_34411A",
     "DEFAULT_TIMEOUT_S",
@@ -36,6 +37,11 @@ __all__ = [
     "InstrumentStateController",
     "StoredState",
     "DisplayController",
+    "StatusController",
+    "ScpiError",
+    "ErrorDrain",
+    "StatusBank",
+    "DiagnosticSnapshot",
     "Statistics",
     "Limits",
     "__version__",

@@ -14,6 +14,15 @@
 > [DMM34411A-FULL-API-001](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md).
 > Documentation-only v0.2.1 does not introduce new instrument features.
 
+## v0.6.0 P1-06 status/diagnostics implementation
+
+`dmm.status` supports explicit error dequeue, bounded queue drain, IEEE
+status registers and enable masks, operation/questionable condition/event
+registers, diagnostic snapshots, explicit bounded completion query and
+operator-confirmed self-test. Implemented with offline simulator coverage;
+**physical HIL NOT RUN**. Event and error reads consume evidence and are
+never called automatically.
+
 ## v0.5.0 P2-08 instrument state/display update
 
 Added safe nonvolatile **configuration slot** query/list/rename/save/recall/
