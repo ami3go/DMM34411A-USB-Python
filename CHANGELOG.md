@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.6 — 2026-11-12 (P0 exclusive binary transfer ownership)
+
+- Serialize complete FETCh and explicit DATA:REMove? streams against other
+  SCPI operations using the existing core client reentrant session lock.
+- Preserve original binary FORMAT/BORDER settings without permitting a
+  concurrent raw command to modify the format mid-transaction.
+- Provide non-I/O `transfer.request_cancel()`; ABORt and close signal
+  transfer cancellation before waiting for the core operation lock.
+- Move confirmed destructive chunk accounting before yielding, preventing
+  underreporting after generator.close; early closure marks UNKNOWN.
+- Prevent nested binary transfers, and reject transfer starting when
+  explicit STOP is pending. A destructive iterator must be exhausted
+  or explicitly closed to release the instrument lock.
+- Add scripted real-thread race and cancellation tests.
+- Actual electrical/throughput/firmware HIL NOT RUN.
+
+
 ## 0.8.5 — 2026-11-12 (P0 atomic acquisition state transitions)
 
 - Serialize complete acquisition configure/INIT/TRG/STOP and NVM-copy

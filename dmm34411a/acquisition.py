@@ -386,6 +386,7 @@ class AcquisitionController:
         until an operator reconciles the instrument.
         """
         self._stop_requested.set()
+        self._meter.transfer.request_cancel()
         with self._meter.session.operation_lock():
             self._state = AcquisitionState.UNKNOWN
             self._completed = False
@@ -395,6 +396,7 @@ class AcquisitionController:
     def abort_and_snapshot(self) -> AcquisitionProgress:
         """One serialized ABORt followed by one partial-count observation."""
         self._stop_requested.set()
+        self._meter.transfer.request_cancel()
         with self._meter.session.operation_lock():
             self.abort()
             try:
