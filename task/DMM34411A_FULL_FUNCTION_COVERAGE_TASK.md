@@ -1,5 +1,13 @@
 # DMM34411A-FULL-API-001 — Complete Missing Measurement, Metrology, Trigger and System Functions
 
+## P0 concurrency safety update — v0.8.5 (2026-11-12)
+
+Software-only: cross-thread INIT/TRG/ABORt state transitions, raw SCPI
+cache invalidation, NVM copy attempts, session open/close and acquisition
+polling are now coordinated through the pinned core session lock. STOP
+wakes polling without a hidden ABORt retry; race tests run in CI.
+**Real 34411A HIL NOT RUN.**
+
 ## Current implementation status — 2026-11-11, v0.8.3
 
 This document retains its original v0.2.0 **historical planning baseline**.

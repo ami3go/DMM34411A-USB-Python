@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import math
 import time
+from functools import wraps
+from threading import Event
 from datetime import datetime, timezone
 from enum import Enum
 from dataclasses import dataclass
@@ -104,6 +106,19 @@ def _timeout_seconds(timeout_ms: int | float) -> float:
     return value / 1000.0
 
 
+def _serialized(method):
+    """Guard state validation, SCPI commands and state commits as one unit.
+
+    Uses the *same* reentrant core client lock as ScpiSession. Never nest a
+    second mutex around transport operations (lock order must be canonical).
+    """
+    @wraps(method)
+    def call(self, *args, **kwargs):
+        with self._meter.session.operation_lock():
+            return method(self, *args, **kwargs)
+    return call
+
+
 class AcquisitionController:
     """High-level finite acquisition, stored reading count and guarded NVM.
 
@@ -120,6 +135,7 @@ class AcquisitionController:
         self._source = "IMMediate"
         self._completed = False
         self._copy_attempted = False
+        self._stop_requested = Event()
         self._state = AcquisitionState.IDLE
         self._triggers = 1
         self._samples_per_trigger: int | None = None
@@ -129,6 +145,7 @@ class AcquisitionController:
     def client(self):
         return self._meter.client
 
+    @_serialized
     def invalidate_external_io(self) -> None:
         """Raw SCPI may have changed acquisition state outside typed control.
 
@@ -140,16 +157,19 @@ class AcquisitionController:
             self._state = AcquisitionState.UNKNOWN
 
     @property
+    @_serialized
     def state(self) -> AcquisitionState:
         """Locally inferred state; not guaranteed to mirror external controllers."""
         return self._state
 
+    @_serialized
     def reset_on_close(self) -> None:
         self._target = None
         self._log_target = None
         self._sample_interval_s = None
         self._completed = False
         self._copy_attempted = False
+        self._stop_requested.clear()
         self._state = AcquisitionState.IDLE
         self._triggers = 1
         self._samples_per_trigger = None
@@ -192,6 +212,7 @@ class AcquisitionController:
             raise ConfigurationError("trigger slope must be POS or NEG")
         return slope
 
+    @_serialized
     def set_level_trigger(self, level: float, slope: str = "POS") -> None:
         """Set explicit 34411A internal crossing trigger without arming it."""
         token = self._level(level)
@@ -208,6 +229,7 @@ class AcquisitionController:
                 raise
         self._source = "INTernal"
 
+    @_serialized
     def set_trigger_output_slope(self, slope: str) -> None:
         """Explicit external trigger-output polarity; requires wired HIL qualification."""
         direction = self._slope(slope)
@@ -216,6 +238,7 @@ class AcquisitionController:
         with self._meter.session.operation_lock():
             self.client.write(f"OUTPut:TRIGger:SLOPe {direction}")
 
+    @_serialized
     def trigger_settings_raw(self) -> dict[str, str]:
         """Non-destructive readback. No status/event clearing or trigger."""
         with self._meter.session.operation_lock():
@@ -226,6 +249,7 @@ class AcquisitionController:
                 "pretrigger_count": self.client.query("SAMPle:COUNt:PRETrigger?").strip(),
             }
 
+    @_serialized
     def progress_snapshot(self) -> AcquisitionProgress:
         """One bounded point count observation with local lifecycle state."""
         if self._target is None or self._samples_per_trigger is None:
@@ -239,6 +263,7 @@ class AcquisitionController:
             observed_at_utc=datetime.now(timezone.utc),
         )
 
+    @_serialized
     def configure(
         self,
         points: int,
@@ -320,6 +345,7 @@ class AcquisitionController:
         # Backward-compatible return: per-trigger count, not multiplied total.
         return points
 
+    @_serialized
     def initiate(self, *, log: bool = False, clear_existing: bool = False) -> None:
         if self._target is None or (log and self._log_target is None):
             raise RuntimeError("configure an acquisition before starting it")
@@ -331,16 +357,21 @@ class AcquisitionController:
             raise FileExistsError("NVM contains readings; export them and delete explicitly first")
         if self._state is not AcquisitionState.CONFIGURED:
             raise RuntimeError("acquisition must be configured (not armed/unknown) to initiate")
+        if self._stop_requested.is_set():
+            raise InterruptedError("STOP requested; do not arm a new acquisition")
         self._completed = False
         self._state = AcquisitionState.UNKNOWN  # INIT may succeed even if reply is lost.
         self.client.write("INITiate")
         self._state = AcquisitionState.ARMED
 
+    @_serialized
     def send_bus_trigger(self) -> None:
         if self._target is None or self._source != "BUS":
             raise ConfigurationError("bus trigger requires an acquisition configured with BUS")
         if self._state is not AcquisitionState.ARMED:
             raise RuntimeError("BUS trigger requires INITiate and an armed acquisition")
+        if self._stop_requested.is_set():
+            raise InterruptedError("STOP requested; BUS trigger is blocked")
         try:
             self.client.write("*TRG")
         except Exception:
@@ -349,24 +380,28 @@ class AcquisitionController:
             raise
 
     def abort(self) -> None:
-        # Even if ABORt times out, no previous COMPLETE may authorize NVM copy.
-        self._state = AcquisitionState.UNKNOWN
-        self._completed = False
-        self.client.write("ABORt")
-        self._state = AcquisitionState.ABORTED
+        """Explicit STOP; wake sleepers BEFORE waiting for client serialization.
+
+        ABORt is never retried. A lost ABORt acknowledgement leaves UNKNOWN
+        until an operator reconciles the instrument.
+        """
+        self._stop_requested.set()
+        with self._meter.session.operation_lock():
+            self._state = AcquisitionState.UNKNOWN
+            self._completed = False
+            self.client.write("ABORt")
+            self._state = AcquisitionState.ABORTED
 
     def abort_and_snapshot(self) -> AcquisitionProgress:
-        """Operator-controlled STOP plus partial-count metadata.
-
-        The count is read only after ABORt succeeded. If read fails, state
-        becomes UNKNOWN; the operator must reconcile the instrument.
-        """
-        self.abort()
-        try:
-            return self.progress_snapshot()
-        except Exception:
-            self._state = AcquisitionState.UNKNOWN
-            raise
+        """One serialized ABORt followed by one partial-count observation."""
+        self._stop_requested.set()
+        with self._meter.session.operation_lock():
+            self.abort()
+            try:
+                return self.progress_snapshot()
+            except BaseException:
+                self._state = AcquisitionState.UNKNOWN
+                raise
 
     def _point_count(self, memory: str, maximum: int, timeout_s: float | None = None) -> int:
         response = self.client.query(f"DATA:POINts? {memory}", timeout_s=timeout_s).strip()
@@ -384,6 +419,7 @@ class AcquisitionController:
     def nvm_count(self) -> int:
         return self._point_count("NVMEM", NONVOLATILE_MEMORY_POINTS)
 
+    @_serialized
     def progress(self) -> dict[str, int | bool]:
         if self._target is None:
             raise RuntimeError("no acquisition configured")
@@ -391,54 +427,74 @@ class AcquisitionController:
         return {"acquired": acquired, "target": self._target, "complete": acquired >= self._target}
 
     def wait_complete(self, timeout_s: float | None = None, poll_interval_s: float = 0.1) -> int:
-        if self._target is None:
-            raise RuntimeError("no acquisition configured")
-        if self._state is not AcquisitionState.ARMED:
-            raise RuntimeError("wait_complete requires INITiate and an armed acquisition")
+        """Bounded wait with an atomic per-poll observation/commit.
+
+        Only a *single* point-count and optional OPC exchange hold the core
+        lock. The sleep is interruptible by an explicit STOP request. The
+        method never retries INIT, TRG, ABORt, or NVM writes.
+        """
         poll = _seconds(poll_interval_s, "poll_interval_s")
         assert poll is not None
-        if timeout_s is None:
-            timeout_s = ACQUISITION_TIMEOUT_S + (
-                self._target * self._sample_interval_s
-                if self._sample_interval_s is not None else 0
-            )
-        budget = _seconds(timeout_s, "timeout_s")
-        assert budget is not None
+        with self._meter.session.operation_lock():
+            if self._target is None:
+                raise RuntimeError("no acquisition configured")
+            if self._state is not AcquisitionState.ARMED:
+                raise RuntimeError("wait_complete requires INITiate and an armed acquisition")
+            if timeout_s is None:
+                timeout_s = ACQUISITION_TIMEOUT_S + (
+                    self._target * self._sample_interval_s
+                    if self._sample_interval_s is not None else 0
+                )
+            budget = _seconds(timeout_s, "timeout_s")
+            assert budget is not None
         deadline = time.monotonic() + budget
         while True:
-            if self._state is AcquisitionState.ABORTED:
-                raise InterruptedError("acquisition explicitly aborted during wait")
-            if self._state is not AcquisitionState.ARMED:
-                raise RuntimeError(f"acquisition state changed during wait: {self._state.value}")
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                self._state = AcquisitionState.UNKNOWN
-                raise TimeoutError("acquisition timed out; instrument may still be armed")
-            # Request uses a finite remaining budget; each poll is individually bounded.
-            try:
-                count = self.volatile_count(timeout_s=remaining)
-            except Exception:
-                self._state = AcquisitionState.UNKNOWN
-                raise
-            if count < 0 or count > VOLATILE_MEMORY_POINTS:
-                raise ValueError(f"invalid volatile point count: {count}")
-            if count >= self._target:
+            with self._meter.session.operation_lock():
+                if self._stop_requested.is_set() or self._state is AcquisitionState.ABORTED:
+                    raise InterruptedError("STOP requested; wait cancelled without retry")
+                if self._state is not AcquisitionState.ARMED:
+                    raise RuntimeError(
+                        f"acquisition state changed during wait: {self._state.value}"
+                    )
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     self._state = AcquisitionState.UNKNOWN
-                    raise TimeoutError("acquisition completion timed out")
+                    self._completed = False
+                    raise TimeoutError("acquisition timed out; instrument may still be armed")
                 try:
-                    if self.client.query("*OPC?", timeout_s=remaining).strip() != "1":
-                        self._state = AcquisitionState.FAULTED
-                        raise RuntimeError("instrument did not acknowledge operation completion")
-                except Exception:
-                    if self._state is not AcquisitionState.FAULTED:
-                        self._state = AcquisitionState.UNKNOWN
+                    count = self.volatile_count(timeout_s=remaining)
+                except BaseException:
+                    self._state = AcquisitionState.UNKNOWN
+                    self._completed = False
                     raise
-                self._completed = True
-                self._state = AcquisitionState.COMPLETE
-                return count
-            time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
+                if count < 0 or count > VOLATILE_MEMORY_POINTS:
+                    self._state = AcquisitionState.FAULTED
+                    self._completed = False
+                    raise ValueError(f"invalid volatile point count: {count}")
+                if count >= self._target:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        self._state = AcquisitionState.UNKNOWN
+                        self._completed = False
+                        raise TimeoutError("acquisition completion timed out")
+                    try:
+                        if self.client.query("*OPC?", timeout_s=remaining).strip() != "1":
+                            self._state = AcquisitionState.FAULTED
+                            raise RuntimeError("instrument did not acknowledge operation completion")
+                    except BaseException:
+                        if self._state is not AcquisitionState.FAULTED:
+                            self._state = AcquisitionState.UNKNOWN
+                        self._completed = False
+                        raise
+                    if self._stop_requested.is_set():
+                        raise InterruptedError("STOP requested during completion check")
+                    self._completed = True
+                    self._state = AcquisitionState.COMPLETE
+                    return count
+            if self._stop_requested.wait(
+                min(poll, max(0.0, deadline - time.monotonic()))
+            ):
+                raise InterruptedError("STOP requested; wait cancelled without retry")
 
     def _read_ascii(self, command: str, expected: int, timeout_s: float) -> list[float]:
         if expected == 0:
@@ -464,6 +520,7 @@ class AcquisitionController:
                 if change and self._meter.session.is_connected:
                     self.client.write(f"FORMat:DATA {previous}")
 
+    @_serialized
     def read_volatile(self, *, erase: bool = False,
                       max_points: int | None = None,
                       timeout_s: float = READBACK_TIMEOUT_S) -> list[float]:
@@ -486,6 +543,7 @@ class AcquisitionController:
         # FETCh? retention semantics require model-specific HIL evidence.
         return self._read_ascii("FETCh?", count, budget)
 
+    @_serialized
     def copy_to_nvm(self, *, overwrite: bool = False,
                     timeout_s: float = ACQUISITION_TIMEOUT_S) -> int:
         budget = _seconds(timeout_s, "timeout_s")
@@ -523,6 +581,7 @@ class AcquisitionController:
                 raise RuntimeError(f"NVM copy count mismatch: {stored}/{self._log_target}")
             return stored
 
+    @_serialized
     def read_nvm(self, timeout_s: float = READBACK_TIMEOUT_S) -> list[float]:
         budget = _seconds(timeout_s, "timeout_s")
         assert budget is not None
@@ -533,6 +592,7 @@ class AcquisitionController:
                 raise RuntimeError("NVM count changed during readback")
             return values
 
+    @_serialized
     def delete_nvm(self, *, confirm: bool = False) -> None:
         if confirm is not True:
             raise PermissionError("NVM deletion requires confirm=True")

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.5 — 2026-11-12 (P0 atomic acquisition state transitions)
+
+- Serialize complete acquisition configure/INIT/TRG/STOP and NVM-copy
+  state checks, SCPI command sequences, and cache changes using the
+  pinned core's reentrant `ScpiSession.operation_lock()`.
+- Make `wait_complete()` atomic per poll and completion query, not across
+  its entire sleep; a STOP request wakes a long poll via an Event.
+- Prevent duplicate INIT, trigger-after-STOP, stale COMPLETE after a
+  concurrent STOP, and duplicate `DATA:COPY` under racing callers.
+- Serialize legacy/raw commands, measurement-mode changes and
+  session open/close with local typed state invalidation.
+- Add deterministic scripted real-thread tests for INIT/TRG order,
+  duplicate INIT, STOP during poll/OPC, configuration/raw SCPI races,
+  close during INIT and duplicate NVM COPY.
+- No new automatic instrument commands, resets, clears or retries.
+- Physical 34411A HIL remains NOT RUN.
+
+
 ## 0.8.4 — 2026-11-12 (Transport-neutral README and naming clarification)
 
 - Rename the README heading to Keysight/Agilent 34411A Python Driver.

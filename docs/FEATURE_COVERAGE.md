@@ -1,6 +1,6 @@
 # Keysight 34411A — Driver Feature Coverage Matrix
 
-**Current software version:** v0.8.3 (2026-11-11); live implementation
+**Current software version:** v0.8.5 (2026-11-12); live implementation
 is composed under `dmm34411a/` with backward-compatible legacy shim
 under `src/`. All major P1-02/03/04/05/06 and P2-07/08 software
 increments have merged; P0 acquisition safety hardened in v0.8.1.
@@ -16,6 +16,14 @@ documentation PR #1 references below are archived planning context.
 was merged into v0.2.0; it is **not** an open feature PR.
 See [master coverage task](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md)
 and [physical HIL checklist](HIL.md).
+
+## v0.8.5 P0 concurrency and STOP safety
+
+The acquisition controller protects state checks and SCPI transitions
+under the existing reentrant core operation lock. Explicit STOP wakes
+concurrent `wait_complete()` even when its polling interval is long,
+and prevents completion after a pending abort. All real-thread race
+tests use scripted transports. Hardware HIL NOT RUN.
 
 ## v0.8.3 offline HIL preparation and evidence
 

@@ -3,8 +3,23 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.4** (the original 2021 code had no package version). The core
+**Version: 0.8.5** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.5 — Thread-safe acquisition transitions (P0)
+
+`AcquisitionController` now serializes **state validation + instrument
+command + local state commit** through the shared core session operation
+lock. Concurrent INIT, *TRG, ABORt, raw SCPI and NVM COPY cannot interleave
+partway through a typed acquisition transition. A STOP request wakes an
+in-progress `wait_complete()` between instrument polls; no automatic
+ABORt is sent by a timeout or cancellation.
+
+`wait_complete()` does **not** hold the lock across sleeping, preserving
+STOP responsiveness. Individual SCPI transactions remain bounded by their
+timeouts. A STOP requested during `*OPC?` prevents marking a run COMPLETE.
+This is thread-level software qualification; actual instrument stop latency
+and response semantics still require physical HIL.
 
 ## Transport support and project naming
 
