@@ -1,10 +1,36 @@
-# Keysight / Agilent 34411A USB and Ethernet Python Driver
+# Keysight / Agilent 34411A Python Driver
 
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.3** (the original 2021 code had no package version). The core
+**Version: 0.8.4** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## Transport support and project naming
+
+This is a **transport-independent SCPI driver** for the Keysight / Agilent
+34411A digital multimeter. The transport is selected by how the instrument is
+connected; the same high-level Python API works across these interfaces.
+
+| Connection | Supported transport | Python connection |
+| --- | --- | --- |
+| USB | USBTMC through VISA | `DMM_34411A(resource_name="USB0::...::INSTR")` |
+| Ethernet | LAN VXI-11 through VISA | `DMM_34411A.from_ethernet("192.168.0.100", protocol="vxi11")` |
+| Ethernet | Raw SCPI over TCP, default port 5025 | `DMM_34411A.from_ethernet("192.168.0.100", protocol="socket")` |
+
+The transport abstraction is supplied by
+[`scpi-driver-core`](https://github.com/ami3go/scpi-driver-core).
+**Live instrument qualification is still outstanding** for USB and LAN; CI
+uses simulated transport behavior.
+
+**Repository and package naming:** The repository is currently
+[`ami3go/DMM34411A-USB-Python`](https://github.com/ami3go/DMM34411A-USB-Python).
+A transport-neutral repository name, **`DMM34411A-Python`**, is recommended
+but is **not renamed yet**. After the repository owner renames it in GitHub
+Settings, this repository link can be updated to the new canonical location.
+The installed distribution name remains `dmm34411a-usb-python` for
+backward compatibility, while the Python import name is **`dmm34411a`**.
+Renaming a GitHub repository does not require changing either package name.
 
 ## v0.8.3 Opt-in HIL evidence runner (safe dry run by default)
 
