@@ -288,6 +288,7 @@ class StatusController:
             raise PermissionError("self-test may disrupt measurements; confirm=True required")
         deadline = _deadline(timeout_s)
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("explicit self-test")
             # Status of any prior acquisition becomes unknown after a self-test.
             self._meter.measurement.invalidate()
             self._meter.acquisition.reset_on_close()

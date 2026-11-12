@@ -1,5 +1,15 @@
 # DMM34411A-FULL-API-001 — Complete Missing Measurement, Metrology, Trigger and System Functions
 
+## P0 guarded recovery update — v0.8.7
+
+Software-only: uncertainty after INIT/TRG/ABORt, NVM COPY/DELETE,
+acquisition timeout and destructive transfer now produces sticky
+quarantine retained across close/reopen. `inspect_recovery()` is
+read-only; explicit operator acknowledgement verifies IDN/generation
+and stable reading-memory counts without clearing the instrument.
+Further destructive/measurement operations are blocked pending review.
+Physical HIL, including actual idle-state confirmation, remains NOT RUN.
+
 ## P0 transfer ownership update — v0.8.6
 
 Software-only: full binary transactions use the pinned core client lock

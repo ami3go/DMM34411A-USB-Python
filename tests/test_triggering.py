@@ -18,6 +18,7 @@ def sim(idn="Agilent,34411A,TEST,1.0", *, points=0):
         .on("DATA:POINts? RDG_STORE", str(points))
         .on("DATA:POINts? NVMEM", "0")
         .on("*OPC?", "1")
+        .on("*STB?", "0")
     )
 
 
@@ -176,6 +177,14 @@ def test_untriggered_timeout_is_bounded_and_leaves_unknown_state():
             meter.configure_volatile_acquisition(4)
         meter.abort_acquisition()
         assert meter.acquisition.state is AcquisitionState.ABORTED
+        # STOP resolves arming, NOT memory/transfer ambiguity.
+        assert meter.recovery.pending
+        with pytest.raises(RuntimeError):
+            meter.configure_volatile_acquisition(4)
+        snap = meter.inspect_recovery()
+        meter.acknowledge_recovery(
+            snap, operator="SIM_QA", confirm_idle=True, confirm_data_review=True
+        )
         meter.configure_volatile_acquisition(4)
     assert tr.history.count("ABORt") == 1
     assert "DATA:DELete NVMEM" not in tr.history

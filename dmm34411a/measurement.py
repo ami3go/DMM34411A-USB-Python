@@ -112,6 +112,7 @@ class MeasurementController:
     def configure(self, config: MeasurementConfig) -> None:
         command = _build_command(config, query=False)
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("measurement configuration")
             self.invalidate()
             self._meter.acquisition.invalidate_external_io()
             self._meter.client.write(command)
@@ -153,6 +154,7 @@ class MeasurementController:
         """Explicit one-shot MEASure? (may change instrument configuration)."""
         command = _build_command(config, query=True)
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("one-shot measurement")
             self.invalidate()
             self._meter.acquisition.invalidate_external_io()
             unit = self._unit(config)

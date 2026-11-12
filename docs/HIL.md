@@ -402,3 +402,24 @@ Use an explicitly authorized fixture and disposable buffer contents.
    readings, SHA and explicit UNKNOWN chunk state.
 6. Verify no implicit `*RST`, `*CLS`, `ABORt`, NVM erase or replay in
    connection and error recovery paths. Record evidence before HIL signoff.
+
+## v0.8.7 P0 uncertain-state reconciliation HIL checklist (NOT RUN)
+
+1. With an approved safely isolated and quiescent 34411A, record
+   serial, firmware, session transport, scope and current buffer counts.
+2. Simulate lost read/write replies **offline first**; record that INIT,
+   *TRG, ABORt, DATA:COPY and DATA:DELete are never automatically replayed.
+3. Verify `RecoveryController.pending` survives close/reopen and
+   blocks new acquisition, destructive memory actions and configuration.
+4. With the real meter only under bench approval, call
+   `inspect_recovery()` and preserve returned IDN, STB and NVM/
+   volatile counts. This query MUST NOT clear status events/error queue.
+5. Operator must independently verify the meter is idle, check all
+   potentially affected readings, and export/backup NVM as necessary.
+6. Call `acknowledge_recovery(snapshot,operator=...,confirm_idle=True,
+   confirm_data_review=True)` only after those physical checks. Verify
+   rejection of changed counts, identity mismatch, stale snapshots and
+   all missing attestations. No *RST/*CLS/ABORt or memory write is issued.
+7. Qualification records should explicitly mark unknown instrument
+   state as BLOCKED until operator signoff; count stability alone is
+   **not** proof of reading integrity or measurement accuracy.

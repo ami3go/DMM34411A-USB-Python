@@ -73,6 +73,7 @@ class InstrumentStateController:
         if type(overwrite) is not bool or type(confirm) is not bool:
             raise ConfigurationError("overwrite and confirm must be bool")
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("save_state")
             occupied = self.slot_valid(s)
             if occupied and not (overwrite and confirm):
                 raise FileExistsError("state occupied; overwrite=True and confirm=True required")
@@ -87,6 +88,7 @@ class InstrumentStateController:
         if confirm is not True:
             raise PermissionError("state recall changes live configuration; confirm=True required")
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("recall_state")
             if not self.slot_valid(s):
                 raise FileNotFoundError(f"state slot {s} does not contain a stored configuration")
             # Even on a timeout the instrument might have changed functions.
@@ -99,6 +101,7 @@ class InstrumentStateController:
         if confirm is not True:
             raise PermissionError("deleting a stored state requires confirm=True")
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("delete_state")
             if not self.slot_valid(s):
                 raise FileNotFoundError(f"state slot {s} is empty")
             self._client.write(f"MEMory:STATe:DELete {s}")
@@ -112,6 +115,7 @@ class InstrumentStateController:
         if not isinstance(name, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]{0,11}", name):
             raise ConfigurationError("state name: 1-12 uppercase A-Z/0-9/_; first A-Z")
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("rename_state")
             if not self.slot_valid(s):
                 raise FileNotFoundError(f"state slot {s} is empty")
             self._client.write(f"MEMory:STATe:NAME {s},{name}")
@@ -141,6 +145,7 @@ class InstrumentStateController:
         elif slot is not None:
             raise ConfigurationError("slot must be omitted when disabling power-on recall")
         with self._meter.session.operation_lock():
+            self._meter.recovery.require_reconciled("set_power_on_recall")
             if enabled:
                 if not self.slot_valid(s):
                     raise FileNotFoundError("selected power-on state does not exist")
