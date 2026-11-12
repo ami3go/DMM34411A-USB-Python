@@ -78,16 +78,19 @@ def test_timeout_quarantine_survives_successful_abort_and_reopen():
 
 def test_failed_initiate_never_replayed_during_recovery():
     tr, _ = sim(count=0)
-    tr.on("INITiate", ScriptedReply(
-        raises=TransportTimeoutError("late INIT reply"), disconnect=True
-    ))
+    # ScriptedReply on a write can be treated as a queued response; a
+    # raising write callback models the uncertain command outcome directly.
+    def fail_init(_):
+        raise TransportTimeoutError("late INIT reply")
+    tr.on("INITiate", fail_init)
     meter = DMM_34411A(transport=tr)
     meter.configure_volatile_acquisition(4)
     with pytest.raises(TransportTimeoutError):
         meter.start_acquisition()
     assert meter.recovery.pending
     assert tr.history.count("INITiate") == 1
-    snapshot = meter.inspect_recovery()  # faulted transport explicitly reopened; *IDN? only
+    meter.transport.invalidate()  # simulate faulted transport after lost ACK
+    snapshot = meter.inspect_recovery()  # explicit read-only reopen; *IDN? only
     assert snapshot.quarantined
     assert snapshot.idn_raw.startswith("Agilent,34411A")
     assert tr.history.count("INITiate") == 1
