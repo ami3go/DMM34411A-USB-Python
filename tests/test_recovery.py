@@ -29,7 +29,10 @@ def _make_uncertain_meter(tr):
     meter = DMM_34411A(transport=tr)
     meter.configure_volatile_acquisition(4, trigger_source="EXTERNAL")
     meter.start_acquisition()
-    with pytest.raises(TimeoutError):
+    # Both timer-bound waiting and the core's per-operation deadline are
+    # legitimate timeout paths under CI scheduling jitter. Either must
+    # quarantine an uncertain acquisition; the assertions below enforce it.
+    with pytest.raises((TimeoutError, TransportTimeoutError)):
         meter.acquisition.wait_complete(
             timeout_s=0.005, poll_interval_s=0.001
         )

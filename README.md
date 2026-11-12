@@ -3,8 +3,17 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.7** (the original 2021 code had no package version). The core
+**Version: 0.8.8** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## MCP server implementation task (planned; not implemented)
+
+An optional [Model Context Protocol (MCP) server implementation task](task/DMM34411A_MCP_SERVER_IMPLEMENTATION_TASK.md)
+defines the proposed local stdio tool interface, fixture/authorization policy,
+read-only discovery, supervised measurement, bounded capture export,
+recovery handling, tests and HIL qualification. The official MCP Python SDK
+v2 requires Python 3.11+, so MCP will be optional and the core driver will
+continue to support Python 3.10. **This task does not add MCP functionality.**
 
 ## v0.8.7 — Guarded recovery after uncertain SCPI operations (P0)
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.8 — 2026-11-12 (MCP server implementation specification only)
+
+- Add task/DMM34411A_MCP_SERVER_IMPLEMENTATION_TASK.md describing
+  optional MCP SDK v2 integration, read-only and supervised tools, stdio
+  transport, remote HTTP security, fixture/identity/lease authorization,
+  existing P0 lock/recovery reuse, bounded exports, test matrix and HIL gates.
+- Link MCP implementation backlog from README and preserve core Python 3.10
+  compatibility; Python 3.11+ required only when installing the future MCP SDK.
+- No MCP server or new instrument operation is implemented; HIL NOT RUN.
+
+
 ## 0.8.7 — 2026-11-12 (P0 uncertain-state guarded recovery)
 
 - Add sticky `RecoveryController` quarantine that survives close/reopen,
