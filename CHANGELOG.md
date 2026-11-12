@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.4 — 2026-11-12 (Transport-neutral README and naming clarification)
+
+- Rename the README heading to Keysight/Agilent 34411A Python Driver.
+- Add a connection matrix for USBTMC/VISA, LAN VXI-11 and LAN TCP/5025.
+- Clarify that the GitHub repository currently retains the USB-specific name
+  until an owner performs an administrative rename; do not link to an
+  uncreated repository.
+- Preserve existing distribution and import names for backward compatibility.
+- Documentation and package-version update only; physical HIL remains NOT RUN.
+
+
 ## 0.8.3 — 2026-11-11 (Opt-in HIL preflight and evidence preparation)
 
 - Add `python -m dmm34411a.hil`: safe offline plan listing 11
