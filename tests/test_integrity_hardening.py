@@ -91,7 +91,7 @@ def test_copy_latch_prevents_reissue_after_ambiguous_completion():
         dmm.acquisition.wait_complete(timeout_s=1.0)
         with pytest.raises(RuntimeError, match="did not complete NVM copy"):
             dmm.save_data_log(timeout_ms=1000)
-        with pytest.raises(RuntimeError, match="already attempted"):
+        with pytest.raises(RuntimeError, match="unresolved instrument state"):
             dmm.save_data_log(timeout_ms=1000)
     assert state["nvm"] == 0
     assert tr.history.count("DATA:COPY NVMEM, RDG_STORE") == 1

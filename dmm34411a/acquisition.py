@@ -135,6 +135,7 @@ class AcquisitionController:
         self._source = "IMMediate"
         self._completed = False
         self._copy_attempted = False
+        self._copy_confirmed = False
         self._stop_requested = Event()
         self._state = AcquisitionState.IDLE
         self._triggers = 1
@@ -144,6 +145,12 @@ class AcquisitionController:
     @property
     def client(self):
         return self._meter.client
+
+    def _mark_uncertain(self, reason: str) -> None:
+        """Permanently quarantine uncertain execution until operator review."""
+        self._completed = False
+        self._state = AcquisitionState.UNKNOWN
+        self._meter.recovery.mark_uncertain(reason)
 
     @_serialized
     def invalidate_external_io(self) -> None:
@@ -169,6 +176,7 @@ class AcquisitionController:
         self._sample_interval_s = None
         self._completed = False
         self._copy_attempted = False
+        self._copy_confirmed = False
         self._stop_requested.clear()
         self._state = AcquisitionState.IDLE
         self._triggers = 1
@@ -277,6 +285,7 @@ class AcquisitionController:
         trigger_level: float | None = None,
         trigger_slope: str = "POS",
     ) -> int:
+        self._meter.recovery.require_reconciled("configure acquisition")
         if self._state in (AcquisitionState.ARMED, AcquisitionState.UNKNOWN):
             raise RuntimeError("acquisition is armed/unknown; explicitly abort before reconfigure")
         limit = NONVOLATILE_MEMORY_POINTS if persist else VOLATILE_MEMORY_POINTS
@@ -331,8 +340,8 @@ class AcquisitionController:
                 else:
                     self.client.write("TRIGger:DELay:AUTO OFF")
                     self.client.write(f"TRIGger:DELay {delay:.12g}")
-        except Exception:
-            self._state = AcquisitionState.UNKNOWN
+        except BaseException:
+            self._mark_uncertain("acquisition configuration command failed")
             raise
         self._target = total
         self._log_target = total if persist else None
@@ -347,6 +356,7 @@ class AcquisitionController:
 
     @_serialized
     def initiate(self, *, log: bool = False, clear_existing: bool = False) -> None:
+        self._meter.recovery.require_reconciled("INITiate")
         if self._target is None or (log and self._log_target is None):
             raise RuntimeError("configure an acquisition before starting it")
         if clear_existing:
@@ -360,12 +370,17 @@ class AcquisitionController:
         if self._stop_requested.is_set():
             raise InterruptedError("STOP requested; do not arm a new acquisition")
         self._completed = False
-        self._state = AcquisitionState.UNKNOWN  # INIT may succeed even if reply is lost.
-        self.client.write("INITiate")
+        self._state = AcquisitionState.UNKNOWN  # INIT may succeed despite lost reply
+        try:
+            self.client.write("INITiate")
+        except BaseException:
+            self._mark_uncertain("INITiate outcome unknown after I/O failure")
+            raise
         self._state = AcquisitionState.ARMED
 
     @_serialized
     def send_bus_trigger(self) -> None:
+        self._meter.recovery.require_reconciled("BUS trigger")
         if self._target is None or self._source != "BUS":
             raise ConfigurationError("bus trigger requires an acquisition configured with BUS")
         if self._state is not AcquisitionState.ARMED:
@@ -374,9 +389,8 @@ class AcquisitionController:
             raise InterruptedError("STOP requested; BUS trigger is blocked")
         try:
             self.client.write("*TRG")
-        except Exception:
-            self._completed = False
-            self._state = AcquisitionState.UNKNOWN
+        except BaseException:
+            self._mark_uncertain("BUS trigger outcome unknown after I/O failure")
             raise
 
     def abort(self) -> None:
@@ -388,9 +402,17 @@ class AcquisitionController:
         self._stop_requested.set()
         self._meter.transfer.request_cancel()
         with self._meter.session.operation_lock():
+            if self._state in (AcquisitionState.UNKNOWN, AcquisitionState.FAULTED):
+                self._meter.recovery.mark_uncertain(
+                    "ABORt requested after an uncertain acquisition state"
+                )
             self._state = AcquisitionState.UNKNOWN
             self._completed = False
-            self.client.write("ABORt")
+            try:
+                self.client.write("ABORt")
+            except BaseException:
+                self._mark_uncertain("ABORt outcome unknown after I/O failure")
+                raise
             self._state = AcquisitionState.ABORTED
 
     def abort_and_snapshot(self) -> AcquisitionProgress:
@@ -460,13 +482,13 @@ class AcquisitionController:
                     )
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    self._state = AcquisitionState.UNKNOWN
+                    self._mark_uncertain("acquisition wait/OPC outcome uncertain")
                     self._completed = False
                     raise TimeoutError("acquisition timed out; instrument may still be armed")
                 try:
                     count = self.volatile_count(timeout_s=remaining)
                 except BaseException:
-                    self._state = AcquisitionState.UNKNOWN
+                    self._mark_uncertain("acquisition wait/OPC outcome uncertain")
                     self._completed = False
                     raise
                 if count < 0 or count > VOLATILE_MEMORY_POINTS:
@@ -476,16 +498,17 @@ class AcquisitionController:
                 if count >= self._target:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
-                        self._state = AcquisitionState.UNKNOWN
+                        self._mark_uncertain("acquisition wait/OPC outcome uncertain")
                         self._completed = False
                         raise TimeoutError("acquisition completion timed out")
                     try:
                         if self.client.query("*OPC?", timeout_s=remaining).strip() != "1":
                             self._state = AcquisitionState.FAULTED
+                            self._meter.recovery.mark_uncertain("operation completion rejected")
                             raise RuntimeError("instrument did not acknowledge operation completion")
                     except BaseException:
                         if self._state is not AcquisitionState.FAULTED:
-                            self._state = AcquisitionState.UNKNOWN
+                            self._mark_uncertain("acquisition wait/OPC outcome uncertain")
                         self._completed = False
                         raise
                     if self._stop_requested.is_set():
@@ -529,14 +552,19 @@ class AcquisitionController:
         budget = _seconds(timeout_s, "timeout_s")
         assert budget is not None
         if erase:
+            self._meter.recovery.require_reconciled("destructive ASCII volatile read")
             if max_points is None:
                 raise ConfigurationError("destructive read requires explicit max_points")
             requested = _count(max_points, MAX_SINGLE_VOLATILE_READ, "max_points")
             count = self.volatile_count()
             if requested > count:
                 raise ValueError("max_points exceeds available volatile readings")
-            # DATA:REMove? is destructive. Never automatically retry after I/O failure.
-            return self._read_ascii(f"DATA:REMove? {requested}", requested, budget)
+            # DATA:REMove? is destructive. No automatic retry after I/O failure.
+            try:
+                return self._read_ascii(f"DATA:REMove? {requested}", requested, budget)
+            except BaseException:
+                self._mark_uncertain("destructive ASCII volatile read outcome unknown")
+                raise
         if max_points is not None:
             raise ConfigurationError("max_points is only supported on explicit destructive reads")
         count = self.volatile_count()
@@ -548,6 +576,7 @@ class AcquisitionController:
     @_serialized
     def copy_to_nvm(self, *, overwrite: bool = False,
                     timeout_s: float = ACQUISITION_TIMEOUT_S) -> int:
+        self._meter.recovery.require_reconciled("NVM COPY")
         budget = _seconds(timeout_s, "timeout_s")
         assert budget is not None
         if self._log_target is None or self._target is None:
@@ -575,12 +604,19 @@ class AcquisitionController:
             # Latch BEFORE the non-idempotent write. A timeout may follow a
             # completed instrument copy even when its reply is unavailable.
             self._copy_attempted = True
-            self.client.write("DATA:COPY NVMEM, RDG_STORE", timeout_s=budget)
-            if self.client.query("*OPC?", timeout_s=budget).strip() != "1":
-                raise RuntimeError("instrument did not complete NVM copy")
-            stored = self.nvm_count()
-            if stored != self._log_target:
-                raise RuntimeError(f"NVM copy count mismatch: {stored}/{self._log_target}")
+            try:
+                self.client.write("DATA:COPY NVMEM, RDG_STORE", timeout_s=budget)
+                if self.client.query("*OPC?", timeout_s=budget).strip() != "1":
+                    raise RuntimeError("instrument did not complete NVM copy")
+                stored = self.nvm_count()
+                if stored != self._log_target:
+                    raise RuntimeError(
+                        f"NVM copy count mismatch: {stored}/{self._log_target}"
+                    )
+            except BaseException:
+                self._mark_uncertain("NVM COPY outcome unknown; data may already be stored")
+                raise
+            self._copy_confirmed = True
             return stored
 
     @_serialized
@@ -598,7 +634,12 @@ class AcquisitionController:
     def delete_nvm(self, *, confirm: bool = False) -> None:
         if confirm is not True:
             raise PermissionError("NVM deletion requires confirm=True")
+        self._meter.recovery.require_reconciled("NVM DELETE")
         with self._meter.session.operation_lock():
-            self.client.write("DATA:DELete NVMEM")
-            if self.nvm_count() != 0:
-                raise RuntimeError("NVM deletion not confirmed by instrument")
+            try:
+                self.client.write("DATA:DELete NVMEM")
+                if self.nvm_count() != 0:
+                    raise RuntimeError("NVM deletion not confirmed by instrument")
+            except BaseException:
+                self._mark_uncertain("NVM DELETE outcome unknown; do not retry")
+                raise

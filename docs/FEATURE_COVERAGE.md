@@ -1,6 +1,6 @@
 # Keysight 34411A — Driver Feature Coverage Matrix
 
-**Current software version:** v0.8.6 (2026-11-12); live implementation
+**Current software version:** v0.8.7 (2026-11-12); live implementation
 is composed under `dmm34411a/` with backward-compatible legacy shim
 under `src/`. All major P1-02/03/04/05/06 and P2-07/08 software
 increments have merged; P0 acquisition safety hardened in v0.8.1.
@@ -16,6 +16,16 @@ documentation PR #1 references below are archived planning context.
 was merged into v0.2.0; it is **not** an open feature PR.
 See [master coverage task](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md)
 and [physical HIL checklist](HIL.md).
+
+## v0.8.7 P0 guarded uncertainty and reconnection
+
+Sticky quarantine survives close/reopen following failed or ambiguous
+INIT/TRG/ABORt, NVM COPY/DELETE, acquisition wait and destructive
+transfer. Read-only inspection records identity/STB and both memory
+counts; explicit operator acknowledgement validates current
+IDN/generation/counts before clearing only local state.
+No automatic reset, replay or NVM erasure. Simulated offline tests
+only; physical HIL NOT RUN.
 
 ## v0.8.6 P0 binary transfer ownership
 

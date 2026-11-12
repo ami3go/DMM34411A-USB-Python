@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.7 — 2026-11-12 (P0 uncertain-state guarded recovery)
+
+- Add sticky `RecoveryController` quarantine that survives close/reopen,
+  including failed INIT/TRG/ABORt, timed-out acquisition, NVM COPY/DELETE
+  with ambiguous completion and interrupted destructive transfers.
+- Block further typed acquisition, destructive FIFO/NVM operations,
+  measurement reconfiguration and persistent state writes until explicit
+  operator review.
+- Add read-only `inspect_recovery()` with model/identity, IEEE status
+  byte, volatile/NVM point counts and session generation; no event/error
+  drain, reset, copy, delete or automatic ABORt.
+- Add `acknowledge_recovery(..., operator, confirm_idle=True,
+  confirm_data_review=True)` with exact IDN/count revalidation,
+  stale-snapshot rejection and local cache invalidation only.
+- Require operator rather than software to certify actual idle condition
+  and data preservation. Physical HIL NOT RUN.
+- Add offline reconnect, identity mismatch, lost write reply, NVM
+  safety, changed count and acknowledgement regression tests.
+
+
 ## 0.8.6 — 2026-11-12 (P0 exclusive binary transfer ownership)
 
 - Serialize complete FETCh and explicit DATA:REMove? streams against other

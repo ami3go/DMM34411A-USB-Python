@@ -3,8 +3,47 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.6** (the original 2021 code had no package version). The core
+**Version: 0.8.7** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.7 — Guarded recovery after uncertain SCPI operations (P0)
+
+The driver now retains a **recovery-required** quarantine across
+disconnect/close/reopen when an acquisition, STOP, NVM COPY/DELETE, or
+destructive transfer has an uncertain outcome. An explicit `ABORt`
+may stop acquisition, but **does not prove reading memory is intact**.
+
+A normal new acquisition or destructive NVM operation is blocked until
+the operator explicitly inspects and acknowledges the instrument:
+
+```python
+from dmm34411a import DMM_34411A, RecoveryRequiredError
+
+meter = DMM_34411A(resource_name="USB0::...::INSTR")
+# After an uncertain I/O failure (or on the same driver object after reconnect):
+snapshot = meter.inspect_recovery()  # reconnects if faulted; READ-ONLY queries
+print(snapshot.idn_raw, snapshot.status_byte)
+print(snapshot.volatile_points, snapshot.nvm_points, snapshot.reason)
+# Only after checking wiring, confirming the meter is idle and reviewing
+# or exporting any affected volatile/NVM data:
+meter.acknowledge_recovery(
+    snapshot, operator="BENCH_OPERATOR",
+    confirm_idle=True, confirm_data_review=True,
+)
+# This only clears the local quarantine/cache. It does not perform
+# *RST, *CLS, ABORt, COPY, REMOVE, DELETE, or any instrument write.
+meter.configure_dc_voltage()
+```
+
+`inspect_recovery()` checks model/serial/firmware, IEEE `*STB?`
+and volatile/NVM reading **counts** without consuming existing SCPI
+errors or event registers. The acknowledgement rechecks identity and
+both counts under the shared core operation lock. It refuses stale
+snapshots, changed counts, unexpected firmware/identity and insufficient
+operator attestations. It cannot independently establish that the
+hardware is idle or that each reading remains valid; that assessment
+requires the bench operator. Quarantine is scoped to the driver object;
+do not use raw `client` I/O as a substitute for reconciliation.
 
 ## v0.8.6 — Exclusive binary transfer ownership (P0)
 

@@ -27,6 +27,7 @@ from dmm34411a.calculation import MathController
 from dmm34411a.storage import InstrumentStateController
 from dmm34411a.display import DisplayController
 from dmm34411a.status import StatusController, ScpiError, ErrorDrain, DiagnosticSnapshot
+from dmm34411a.recovery import RecoveryController, RecoverySnapshot, RecoveryAcknowledgement
 from dmm34411a.transfer import (
     ReadingTransferController, BinaryCapture, ExportReceipt,
 )
@@ -115,6 +116,7 @@ class DMM_34411A:
         self.storage = InstrumentStateController(self)
         self.display = DisplayController(self)
         self.status = StatusController(self)
+        self.recovery = RecoveryController(self)
         self.transfer = ReadingTransferController(self)
         if auto_open:
             self.open()
@@ -165,6 +167,10 @@ class DMM_34411A:
         with self.session.operation_lock():
             if self.session.is_connected:
                 return
+            if self.idn is not None:
+                self.recovery.mark_uncertain(
+                    "transport disconnected before explicit close; instrument state unknown"
+                )
             self.session.open()
             try:
                 self.idn = self.cmd_query("*IDN?")
@@ -458,6 +464,32 @@ class DMM_34411A:
             timeout_s=timeout_s,
         )
 
+    def inspect_recovery(self) -> RecoverySnapshot:
+        """Read-only recovery inspection; reopens faulted transport if needed.
+
+        No reset, ABORt, error drain, memory remove/copy/delete or retry.
+        A new acquisition remains blocked until explicit acknowledgement.
+        """
+        with self.session.operation_lock():
+            if not self.recovery.pending:
+                if self.idn is not None and not self.session.is_connected:
+                    self.recovery.mark_uncertain("transport disconnected unexpectedly")
+                else:
+                    raise RuntimeError("no uncertain instrument operation to reconcile")
+            if not self.session.is_connected:
+                self.open()  # only *IDN?; never clear/reset
+            return self.recovery.inspect()
+
+    def acknowledge_recovery(
+        self, snapshot: RecoverySnapshot, *, operator: str,
+        confirm_idle: bool = False, confirm_data_review: bool = False,
+    ) -> RecoveryAcknowledgement:
+        """Operator-confirmed release of quarantine, no instrument writes."""
+        return self.recovery.acknowledge(
+            snapshot, operator=operator, confirm_idle=confirm_idle,
+            confirm_data_review=confirm_data_review,
+        )
+
     def device_clear(self) -> None:
         """Explicit VISA device clear; invalidates cached instrument state."""
         with self.session.operation_lock():
@@ -467,12 +499,24 @@ class DMM_34411A:
                 )
             self.acquisition.invalidate_external_io()
             self.measurement.invalidate()
+            self.recovery.mark_uncertain("explicit VISA device clear invalidated instrument state")
             self.transport.device_clear()
 
     def close(self) -> None:
         """Cancel an active binary transfer before closing the session."""
         self.transfer.request_cancel()
         with self.session.operation_lock():
+            if self.acquisition._state in (
+                AcquisitionState.UNKNOWN, AcquisitionState.FAULTED
+            ):
+                self.recovery.mark_uncertain(
+                    "session closed with uncertain acquisition or transfer state"
+                )
+            if (self.acquisition._copy_attempted
+                    and not self.acquisition._copy_confirmed):
+                self.recovery.mark_uncertain("NVM COPY outcome unverified on close")
+            if self.idn is not None and not self.session.is_connected:
+                self.recovery.mark_uncertain("transport lost before explicit close")
             try:
                 self.session.close()
             finally:

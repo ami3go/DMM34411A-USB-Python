@@ -166,6 +166,10 @@ class ReadingTransferController:
             try:
                 yield
             finally:
+                if acq._state in (AcquisitionState.UNKNOWN, AcquisitionState.FAULTED):
+                    self._meter.recovery.mark_uncertain(
+                        "binary transfer interrupted or uncertain; inspect memory"
+                    )
                 self._active_transfer = False
 
     @property
@@ -295,6 +299,7 @@ class ReadingTransferController:
         if cancelled is not None and not callable(cancelled):
             raise ConfigurationError("cancelled must be callable or None")
         with self._exclusive_transfer():
+            self._meter.recovery.require_reconciled("destructive binary drain")
             self._ready()
             available = self._meter.acquisition.volatile_count()
             if target > available:
