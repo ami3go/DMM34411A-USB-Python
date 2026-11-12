@@ -7,6 +7,10 @@ from .calculation import MathController, MathMode, Statistics, Limits
 from .storage import InstrumentStateController, StoredState
 from .display import DisplayController
 from .status import StatusController, ScpiError, ErrorDrain, StatusBank, DiagnosticSnapshot
+from .recovery import (
+    RecoveryController, RecoveryRequiredError, RecoverySnapshot,
+    RecoveryAcknowledgement,
+)
 from .transfer import (
     ReadingTransferController, BinaryCapture, ReadingChunk, ExportReceipt,
     TransferUncertainError, decode_readings,
@@ -48,6 +52,10 @@ __all__ = [
     "ErrorDrain",
     "StatusBank",
     "DiagnosticSnapshot",
+    "RecoveryController",
+    "RecoveryRequiredError",
+    "RecoverySnapshot",
+    "RecoveryAcknowledgement",
     "ReadingTransferController",
     "BinaryCapture",
     "ReadingChunk",
