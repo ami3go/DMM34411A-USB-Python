@@ -111,8 +111,9 @@ class MeasurementController:
 
     def configure(self, config: MeasurementConfig) -> None:
         command = _build_command(config, query=False)
-        self.invalidate()
         with self._meter.session.operation_lock():
+            self.invalidate()
+            self._meter.acquisition.invalidate_external_io()
             self._meter.client.write(command)
             self._active = config
             self._generation = self._meter.session.generation
@@ -151,8 +152,9 @@ class MeasurementController:
     def measure(self, config: MeasurementConfig) -> MeasurementResult:
         """Explicit one-shot MEASure? (may change instrument configuration)."""
         command = _build_command(config, query=True)
-        self.invalidate()
         with self._meter.session.operation_lock():
+            self.invalidate()
+            self._meter.acquisition.invalidate_external_io()
             unit = self._unit(config)
             raw = self._meter.client.query(command).strip()
             return _decode(config.function, raw, unit)

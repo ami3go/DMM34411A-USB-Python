@@ -161,16 +161,17 @@ class DMM_34411A:
         return cls(transport=selected, timeout_s=timeout_s, auto_open=auto_open)
 
     def open(self) -> None:
-        """Open a session and verify communication with one non-destructive query."""
-        if self.session.is_connected:
-            return
-        self.session.open()
-        try:
-            self.idn = self.cmd_query("*IDN?")
-        except BaseException:
-            # Do not leave an open resource after a failed initial probe.
-            self.session.close()
-            raise
+        """Open a session and probe *IDN? as one serialized lifecycle operation."""
+        with self.session.operation_lock():
+            if self.session.is_connected:
+                return
+            self.session.open()
+            try:
+                self.idn = self.cmd_query("*IDN?")
+            except BaseException:
+                self.session.close()
+                self.idn = None
+                raise
 
     def conf_voltage_dc(self) -> None:
         self.cmd_write(":CONFigure:VOLTage:DC: AUTO")
@@ -185,19 +186,19 @@ class DMM_34411A:
         self.cmd_write(":CONFigure:CURRent:DC: AUTO")
 
     def cmd_write(self, txt_cmd: str) -> None:
-        # External SCPI may change the instrument's configured measurement mode.
-        self.measurement.invalidate()
-        self.acquisition.invalidate_external_io()
-        self.client.write(txt_cmd)
+        with self.session.operation_lock():
+            # External SCPI can alter typed mode and any armed acquisition.
+            self.measurement.invalidate()
+            self.acquisition.invalidate_external_io()
+            self.client.write(txt_cmd)
 
     def cmd_query(self, txt_cmd: str) -> str:
-        # Raw queries can include MEASure? which reconfigures the instrument.
-        self.measurement.invalidate()
-        # A raw query can itself trigger, read or reconfigure the meter.
-        if txt_cmd.strip().upper() != "*IDN?":
-            self.acquisition.invalidate_external_io()
-        # Retain the legacy string result; remove only line termination.
-        return self.client.query(txt_cmd).rstrip("\r\n")
+        with self.session.operation_lock():
+            # Raw queries can have side effects: invalidate before sending.
+            self.measurement.invalidate()
+            if txt_cmd.strip().upper() != "*IDN?":
+                self.acquisition.invalidate_external_io()
+            return self.client.query(txt_cmd).rstrip("\r\n")
 
     def cmd_read(self) -> str:
         return self.cmd_query("READ?")
@@ -458,19 +459,25 @@ class DMM_34411A:
         )
 
     def device_clear(self) -> None:
-        """Explicit VISA device clear; may abort an ongoing measurement."""
-        if not isinstance(self.transport, SupportsDeviceClear):
-            raise UnsupportedOperationError("selected transport does not support device clear")
-        self.transport.device_clear()
+        """Explicit VISA device clear; invalidates cached instrument state."""
+        with self.session.operation_lock():
+            if not isinstance(self.transport, SupportsDeviceClear):
+                raise UnsupportedOperationError(
+                    "selected transport does not support device clear"
+                )
+            self.acquisition.invalidate_external_io()
+            self.measurement.invalidate()
+            self.transport.device_clear()
 
     def close(self) -> None:
-        """Release the connection without issuing an implicit device clear."""
-        try:
-            self.session.close()
-        finally:
-            self.idn = None
-            self.acquisition.reset_on_close()
-            self.measurement.invalidate()
+        """Release connection with all local caches reset atomically."""
+        with self.session.operation_lock():
+            try:
+                self.session.close()
+            finally:
+                self.idn = None
+                self.acquisition.reset_on_close()
+                self.measurement.invalidate()
 
     def __enter__(self) -> DMM_34411A:
         if not self.session.is_connected:
