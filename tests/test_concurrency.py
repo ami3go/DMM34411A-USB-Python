@@ -26,6 +26,8 @@ def _hold_command(tr, command):
         entered.set()
         if not release.wait(timeout=3):
             raise AssertionError("test transport release timed out")
+        # Queries require an actual terminated reply; write callbacks do not.
+        return "1" if command.endswith("?") else None
     tr.on(command, stop_here)
     return entered, release
 
