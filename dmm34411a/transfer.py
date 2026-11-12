@@ -20,6 +20,7 @@ import secrets
 import shutil
 import struct
 import tempfile
+from threading import Event
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -138,6 +139,34 @@ class ReadingTransferController:
 
     def __init__(self, meter: object) -> None:
         self._meter = meter
+        self._active_transfer = False
+        self._cancel_requested = Event()
+
+    def request_cancel(self) -> None:
+        """Nonblocking signal; never emits SCPI or replays a command."""
+        self._cancel_requested.set()
+
+    @contextmanager
+    def _exclusive_transfer(self) -> Iterator[None]:
+        """Hold the canonical SCPI client lock across a full transfer.
+
+        A destructive iterator must be exhausted or explicitly closed.
+        """
+        with self._meter.session.operation_lock():
+            if self._active_transfer:
+                raise RuntimeError("nested binary transfers are prohibited")
+            acq = self._meter.acquisition
+            if (acq._stop_requested.is_set()
+                    and acq._state not in (AcquisitionState.ABORTED,
+                                           AcquisitionState.CONFIGURED,
+                                           AcquisitionState.IDLE)):
+                raise InterruptedError("STOP pending; do not begin transfer")
+            self._cancel_requested.clear()
+            self._active_transfer = True
+            try:
+                yield
+            finally:
+                self._active_transfer = False
 
     @property
     def _client(self):
@@ -157,9 +186,8 @@ class ReadingTransferController:
     def _binary_format(self, precision_bits: int) -> Iterator[None]:
         """Format and border are persistent settings; restore on every safe exit.
 
-        The transfer does NOT hold the lock while user code writes files or
-        processes chunks, but each query+read has a session-scoped lock.
-        Do not share the physical instrument with an uncoordinated controller.
+        Caller holds _exclusive_transfer for full format/read/restore
+        lifetime; no other client command may interleave.
         """
         _precision(precision_bits)
         previous_data = previous_border = None
@@ -215,49 +243,50 @@ class ReadingTransferController:
     def fetch_volatile_binary(
         self, *, precision_bits: int = 32, timeout_s: float = 120.0,
     ) -> BinaryCapture:
-        """Non-destructive FETCh? of the entire confirmed volatile buffer.
+        """Non-destructive capture with exclusive count/format/read/restore.
 
-        Returns <=8,000,000 payload bytes, not a million-element Python list.
-        Caller can lazily iterate BinaryCapture.readings(). Core owns IEEE
-        binary block framing and invalidates malformed/uncompleted transfers.
+        Serializes the entire binary transaction against all other users of
+        the same ScpiClient, including raw commands and status queries.
         """
         _precision(precision_bits)
         budget = _timeout(timeout_s)
-        self._ready()
-        with self._meter.session.operation_lock():
+        with self._exclusive_transfer():
+            self._ready()
             count = self._meter.acquisition.volatile_count()
-        if count == 0:
-            return BinaryCapture(0, precision_bits, b"")
-        if count > VOLATILE_MEMORY_POINTS:
-            raise ValueError("instrument reports more than 1 million volatile samples")
-        try:
-            with self._binary_format(precision_bits):
-                with self._meter.session.operation_lock():
+            if count == 0:
+                return BinaryCapture(0, precision_bits, b"")
+            if count > VOLATILE_MEMORY_POINTS:
+                raise ValueError("instrument reports more than 1 million volatile samples")
+            try:
+                with self._binary_format(precision_bits):
                     self._ready()
                     self._verify_format(f"REAL,{precision_bits}")
+                    if self._cancel_requested.is_set():
+                        raise InterruptedError("binary FETCh cancelled before read")
                     payload = self._query_binary("FETCh?", count, precision_bits, budget)
+                    if self._cancel_requested.is_set():
+                        raise InterruptedError("binary FETCh cancelled, result not published")
                     count_after = self._meter.acquisition.volatile_count()
                     if count_after != count:
                         raise RuntimeError(
-                            "volatile buffer changed during non-destructive FETCh?; content uncertain"
+                            "volatile buffer changed during FETCh?; result uncertain"
                         )
-        except BaseException:
-            # Even non-destructive transfers may have left format or buffer
-            # state uncertain following a malformed/partial response.
-            self._meter.acquisition._state = AcquisitionState.UNKNOWN
-            raise
-        return BinaryCapture(count, precision_bits, payload)
+            except BaseException:
+                self._meter.acquisition._state = AcquisitionState.UNKNOWN
+                raise
+            return BinaryCapture(count, precision_bits, payload)
 
     def iter_destructive_chunks(
         self, *, max_points: int, chunk_size: int = 10_000,
         precision_bits: int = 32, timeout_s: float = 120.0,
         cancelled: Callable[[], bool] | None = None,
     ) -> Iterator[ReadingChunk]:
-        """Explicit DATA:REMove? drain, one bounded binary block per chunk.
+        """Explicit destructive stream with an instrument-wide transfer lease.
 
-        Use contextlib.closing(...) when iteration may stop prematurely.
-        A timeout/short reply marks acquisition UNKNOWN and raises
-        TransferUncertainError; no automatic retransmission or further drain.
+        Consumer MUST exhaust this iterator or call .close() (prefer
+        contextlib.closing); the core lock remains held across yields.
+        This is intentional to preserve FIFO/format integrity. STOP or
+        request_cancel() interrupts before the next destructive query.
         """
         target = _positive(max_points, VOLATILE_MEMORY_POINTS, "max_points")
         chunk = _positive(chunk_size, _MAX_CHUNK, "chunk_size")
@@ -265,52 +294,62 @@ class ReadingTransferController:
         budget = _timeout(timeout_s)
         if cancelled is not None and not callable(cancelled):
             raise ConfigurationError("cancelled must be callable or None")
-        self._ready()
-        with self._meter.session.operation_lock():
+        with self._exclusive_transfer():
+            self._ready()
             available = self._meter.acquisition.volatile_count()
-        if target > available:
-            raise ConfigurationError(
-                f"requested {target} destructive readings; only {available} available"
-            )
-        removed = 0
-        with self._binary_format(precision_bits):
-            while removed < target:
-                if cancelled is not None and cancelled():
-                    self._meter.acquisition._state = AcquisitionState.UNKNOWN
-                    raise InterruptedError(
-                        f"destructive drain cancelled after {removed} confirmed readings"
-                    )
-                take = min(chunk, target - removed)
-                try:
-                    with self._meter.session.operation_lock():
-                        self._ready()
-                        self._verify_format(f"REAL,{precision_bits}")
-                        before = self._meter.acquisition.volatile_count()
-                        if before != available:
-                            raise RuntimeError(
-                                "volatile count changed between chunks; external interference"
-                            )
-                        payload = self._query_binary(
-                            f"DATA:REMove? {take}", take, precision_bits, budget
-                        )
-                        after = self._meter.acquisition.volatile_count()
-                        if after != available - take:
-                            raise RuntimeError(
-                                f"destructive count mismatch: {before}->{after} for {take}"
-                            )
-                    readings = tuple(decode_readings(payload, precision_bits))
-                except Exception as exc:
-                    self._meter.acquisition._state = AcquisitionState.UNKNOWN
-                    raise TransferUncertainError(
-                        "DATA:REMove? outcome/reading integrity uncertain; do not retry",
-                        confirmed_removed=removed,
-                    ) from exc
-                yield ReadingChunk(
-                    first_index=removed, readings=readings,
-                    remaining_in_instrument=after, precision_bits=precision_bits,
+            if target > available:
+                raise ConfigurationError(
+                    f"requested {target} destructive readings; only {available} available"
                 )
-                available = after
-                removed += take
+            removed = 0
+            completed = False
+            try:
+                with self._binary_format(precision_bits):
+                    while removed < target:
+                        if self._cancel_requested.is_set() or (
+                            cancelled is not None and cancelled()
+                        ):
+                            self._meter.acquisition._state = AcquisitionState.UNKNOWN
+                            raise InterruptedError(
+                                f"destructive drain cancelled after {removed} confirmed readings"
+                            )
+                        take = min(chunk, target - removed)
+                        try:
+                            self._ready()
+                            self._verify_format(f"REAL,{precision_bits}")
+                            before = self._meter.acquisition.volatile_count()
+                            if before != available:
+                                raise RuntimeError(
+                                    "volatile count changed between chunks; external interference"
+                                )
+                            payload = self._query_binary(
+                                f"DATA:REMove? {take}", take, precision_bits, budget
+                            )
+                            after = self._meter.acquisition.volatile_count()
+                            if after != available - take:
+                                raise RuntimeError(
+                                    f"destructive count mismatch: {before}->{after} for {take}"
+                                )
+                            readings = tuple(decode_readings(payload, precision_bits))
+                        except Exception as exc:
+                            self._meter.acquisition._state = AcquisitionState.UNKNOWN
+                            raise TransferUncertainError(
+                                "DATA:REMove? outcome/reading integrity uncertain; do not retry",
+                                confirmed_removed=removed,
+                            ) from exc
+                        first = removed
+                        # Update confirmed offsets BEFORE yielding, so caller
+                        # closes/aborts cannot undercount consumed samples.
+                        removed += take
+                        available = after
+                        yield ReadingChunk(
+                            first_index=first, readings=readings,
+                            remaining_in_instrument=after, precision_bits=precision_bits,
+                        )
+                completed = True
+            finally:
+                if not completed and removed:
+                    self._meter.acquisition._state = AcquisitionState.UNKNOWN
 
     def export_volatile_bundle(
         self, directory: str | Path, *, destructive: bool = False,

@@ -1,5 +1,14 @@
 # DMM34411A-FULL-API-001 — Complete Missing Measurement, Metrology, Trigger and System Functions
 
+## P0 transfer ownership update — v0.8.6
+
+Software-only: full binary transactions use the pinned core client lock
+from format selection through restoration; destructive iterators retain
+ownership across yields and require explicit close when abandoned.
+STOP/close signals are non-I/O cancellation events; no automatic replay.
+Confirmed removal offsets are updated before yielding. Independent
+firmware memory-retention/byte-order HIL remains NOT RUN.
+
 ## P0 concurrency safety update — v0.8.5 (2026-11-12)
 
 Software-only: cross-thread INIT/TRG/ABORt state transitions, raw SCPI

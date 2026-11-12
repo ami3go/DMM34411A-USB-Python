@@ -1,6 +1,6 @@
 # Keysight 34411A — Driver Feature Coverage Matrix
 
-**Current software version:** v0.8.5 (2026-11-12); live implementation
+**Current software version:** v0.8.6 (2026-11-12); live implementation
 is composed under `dmm34411a/` with backward-compatible legacy shim
 under `src/`. All major P1-02/03/04/05/06 and P2-07/08 software
 increments have merged; P0 acquisition safety hardened in v0.8.1.
@@ -16,6 +16,16 @@ documentation PR #1 references below are archived planning context.
 was merged into v0.2.0; it is **not** an open feature PR.
 See [master coverage task](../task/DMM34411A_FULL_FUNCTION_COVERAGE_TASK.md)
 and [physical HIL checklist](HIL.md).
+
+## v0.8.6 P0 binary transfer ownership
+
+The full FORMAT/COUNT/FETCh/READBACK/RESTORE transaction and complete
+destructive chunk iterator hold the same core SCPI session RLock.
+No concurrent driver/core client operation can interleave. Explicit
+transfer cancellation occurs before the next destructive query; yielded
+chunk counts are committed before returning to caller.
+A partially used generator must be closed to release the lock.
+All testing is simulated; hardware HIL NOT RUN.
 
 ## v0.8.5 P0 concurrency and STOP safety
 

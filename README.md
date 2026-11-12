@@ -3,8 +3,31 @@
 A synchronous Python driver for the 34411A digital multimeter, migrated from
 direct PyVISA calls to [scpi-driver-core](https://github.com/ami3go/scpi-driver-core).
 
-**Version: 0.8.5** (the original 2021 code had no package version). The core
+**Version: 0.8.6** (the original 2021 code had no package version). The core
 dependency is pinned to a reviewed commit of development version 0.1.0.dev12.
+
+## v0.8.6 — Exclusive binary transfer ownership (P0)
+
+`dmm.transfer` now owns the canonical reentrant core SCPI operation lock
+from buffer count check through format selection, IEEE binary reads and
+restoration. No other thread using the same `dmm.client` can interleave
+raw commands or change `FORMat:DATA` during an active binary transaction.
+
+**Destructive stream lifetime:** `iter_destructive_chunks()` holds this
+lock **across yielded chunks**, not only during individual SCPI calls.
+Always exhaust it or explicitly close it (prefer `contextlib.closing`).
+A caller that leaves a generator suspended will block other instrument I/O
+until the generator is closed. To cancel without sending any instrument
+command, call `dmm.transfer.request_cancel()`; it will stop before the
+next `DATA:REMove?` and mark partial acquisition state UNKNOWN.
+An explicit `abort_acquisition()` also signals cancellation before
+waiting to send the single operator-commanded `ABORt`.
+
+Confirmed removed-reading counts are committed **before yielding**
+each chunk. Abandoned streams mark the instrument's local acquisition
+state UNKNOWN. After uncertain/cancelled draining, do not restart
+the destructive read without independent instrument-state reconciliation.
+This is offline-validated concurrency behavior; real USB/LAN HIL is NOT RUN.
 
 ## v0.8.5 — Thread-safe acquisition transitions (P0)
 

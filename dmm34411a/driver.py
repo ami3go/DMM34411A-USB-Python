@@ -470,7 +470,8 @@ class DMM_34411A:
             self.transport.device_clear()
 
     def close(self) -> None:
-        """Release connection with all local caches reset atomically."""
+        """Cancel an active binary transfer before closing the session."""
+        self.transfer.request_cancel()
         with self.session.operation_lock():
             try:
                 self.session.close()
